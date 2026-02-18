@@ -37,7 +37,7 @@ const SOURCES = {
     },
     newsfirst: {
         name: 'NewsFirst',
-        url: 'https://apienglish.newsfirst.lk/post/PostPagination/0/15',
+        url: 'https://apisinhala.newsfirst.lk/post/PostPagination/0/15',
         type: 'json',
         baseUrl: 'https://www.newsfirst.lk'
     },
@@ -107,13 +107,8 @@ const SOURCES = {
     },
     itnnews: {
         name: 'ITN News',
-        url: 'https://www.itnnews.lk/category/local/',
-        type: 'html',
-        item: '.td-module-container, article',
-        title: '.td-module-title a, .entry-title a, h3 a',
-        link: '.td-module-title a, .entry-title a, h3 a',
-        image: '.td-thumb-css, img',
-        desc: '.td-excerpt, p',
+        url: 'https://www.itnnews.lk/feed/',
+        type: 'rss',
         baseUrl: 'https://www.itnnews.lk'
     },
     siyatha: {
