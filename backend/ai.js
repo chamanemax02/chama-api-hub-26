@@ -191,6 +191,29 @@ class AskAIFree {
 const nGPT = new NoteGPT_V3();
 const askFree = new AskAIFree();
 
+class CrictosAI {
+    async generate(prompt) {
+        try {
+            const response = await axios.post('https://image.crictos.my.id',
+                { prompt: prompt },
+                {
+                    headers: {
+                        'Authorization': 'Bearer nimesh2026',
+                        'Content-Type': 'application/json'
+                    },
+                    responseType: 'arraybuffer',
+                    timeout: 45000
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error("Crictos AI Error:", error.message);
+            throw error;
+        }
+    }
+}
+const crictos = new CrictosAI();
+
 // NoteGPT V3 Routes
 router.get("/notegpt-v3", async (req, res) => {
     const q = req.query.q || req.query.prompt;
@@ -299,6 +322,21 @@ router.get("/image/banana", async (req, res) => {
     if (!prompt) return res.status(400).json({ status: false, error: "Missing prompt" });
     const result = await ai.generateImage(prompt, ratio);
     res.json(result);
+});
+
+router.get("/image/crictos", async (req, res) => {
+    const prompt = req.query.prompt || req.query.q || req.query.p;
+    if (!prompt) return res.status(400).json({ status: false, error: "Missing prompt" });
+
+    try {
+        const buffer = await crictos.generate(prompt);
+        res.setHeader("Content-Type", "image/jpeg");
+        res.send(buffer);
+    } catch (e) {
+        // Fallback to Pollinations
+        const seed = Math.floor(Math.random() * 10000);
+        res.redirect(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`);
+    }
 });
 
 // Existing ZonerAI Image Gen
