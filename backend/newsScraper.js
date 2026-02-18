@@ -107,13 +107,13 @@ const SOURCES = {
     },
     itnnews: {
         name: 'ITN News',
-        url: 'https://www.itnnews.lk/',
+        url: 'https://www.itnnews.lk/category/local/',
         type: 'html',
-        item: '.td-module-title a, .entry-title a, article h3 a, article h2 a',
-        title: 'self',
-        link: 'self',
-        image: 'img',
-        desc: 'p',
+        item: '.td-module-container, article',
+        title: '.td-module-title a, .entry-title a, h3 a',
+        link: '.td-module-title a, .entry-title a, h3 a',
+        image: '.td-thumb-css, img',
+        desc: '.td-excerpt, p',
         baseUrl: 'https://www.itnnews.lk'
     },
     siyatha: {
@@ -389,12 +389,19 @@ function parseHTML(data, source) {
     $(source.item).each((i, el) => {
         if (articles.length >= 25) return;
 
-        let title = $(el).find(source.title).first().text().trim() || $(el).text().split('\n')[0].trim();
-        let link = $(el).find(source.link).first().attr('href') || $(el).attr('href') || $(el).closest('a').attr('href');
-        let image = $(el).find(source.image).first().attr('src') || $(el).find('img').first().attr('src') || $(el).find(source.image).first().attr('data-src') || $(el).find(source.image).first().attr('data-original');
+        let titleEl = source.title === 'self' ? $(el) : $(el).find(source.title).first();
+        let linkEl = source.link === 'self' ? $(el) : $(el).find(source.link).first();
+
+        let title = titleEl.text().trim() || $(el).text().split('\n')[0].trim();
+        let link = linkEl.attr('href') || $(el).attr('href') || $(el).closest('a').attr('href');
+        let image = $(el).find(source.image).first().attr('src') ||
+            $(el).find('img').first().attr('src') ||
+            $(el).find(source.image).first().attr('data-src') ||
+            $(el).find(source.image).first().attr('data-original');
+
         let desc = $(el).find(source.desc).first().text().trim() || $(el).find('p').first().text().trim() || "";
 
-        if (title && title.length > 5 && link) {
+        if (title && title.length > 3 && link) {
             if (!link.startsWith('http')) link = source.baseUrl + (link.startsWith('/') ? '' : '/') + link;
             if (image && !image.startsWith('http')) {
                 if (image.startsWith('//')) {
@@ -403,13 +410,13 @@ function parseHTML(data, source) {
                     image = source.baseUrl + (image.startsWith('/') ? '' : '/') + image;
                 }
             }
-            if (!image) image = `https://s2.googleusercontent.com/s2/favicons?domain=${source.baseUrl}&sz=128`;
+            if (!image || image.includes('favicon')) image = `https://s2.googleusercontent.com/s2/favicons?domain=${source.baseUrl}&sz=128`;
 
             articles.push({
-                title,
+                title: title.replace(/\s+/g, ' ').substring(0, 150),
                 url: link,
                 image,
-                desc: desc.substring(0, 200) || "Check latest news at " + source.name,
+                desc: desc.substring(0, 180).replace(/\s+/g, ' ') || "Check latest news at " + source.name,
                 source: source.name
             });
         }
