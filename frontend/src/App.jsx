@@ -58,7 +58,7 @@ function AppContent() {
   const [categoryStatuses, setCategoryStatuses] = useState({});
 
   const CLIENT_ID = "913109613888-8of14n9l2ekh0eu2rvnelltkabct88ph.apps.googleusercontent.com";
-  const GITHUB_CLIENT_ID = "55a4db34da5b0372089cfd933d6f817105a182a7"; // Replace with your actual GitHub Client ID
+  const GITHUB_CLIENT_ID = "Ov23liaEm4ZLYQHLQfLk"; // Updated from screenshot
 
   const fetchNews = async () => {
     try {
@@ -266,44 +266,45 @@ function AppContent() {
           <h2 style={{ color: 'white', marginBottom: '0.75rem', fontSize: '2.5rem', fontWeight: 900, letterSpacing: '-1.5px', background: 'linear-gradient(to right, #fff, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>CHAMA HUB</h2>
           <p style={{ color: '#9ca3af', marginBottom: '2.5rem', fontSize: '1.1rem', fontWeight: 500 }}>The Ultimate API Matrix</p>
 
-          <div id="googleBtn" style={{ minHeight: '44px', display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}></div>
+          <div className="login-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '100%', marginBottom: '2rem' }}>
+            <div id="googleBtn" style={{ minHeight: '44px', display: 'flex', justifyContent: 'center', width: '100%' }}></div>
 
-          <button
-            onClick={loginWithGithub}
-            style={{
-              width: '320px',
-              height: '44px',
-              borderRadius: '50px',
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: '#1a1c2e',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              cursor: 'pointer',
-              marginBottom: '2.5rem',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
-              margin: '0 auto 2.5rem'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = '#24292e';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 15px 30px rgba(0,0,0,0.5)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = '#1a1c2e';
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.4)';
-            }}
-            className="github-login-btn"
-          >
-            <Github size={20} />
-            <span style={{ letterSpacing: '0.3px' }}>Continue with GitHub</span>
-          </button>
+            <button
+              onClick={loginWithGithub}
+              style={{
+                width: '100%',
+                maxWidth: '320px',
+                height: '44px',
+                borderRadius: '50px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: '#1a1c2e',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.4)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#24292e';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 15px 30px rgba(0,0,0,0.5)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = '#1a1c2e';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.4)';
+              }}
+              className="github-login-btn"
+            >
+              <Github size={20} />
+              <span style={{ letterSpacing: '0.3px' }}>Continue with GitHub</span>
+            </button>
+          </div>
 
           <div className="login-features" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '1rem' }}>
             <div className="feat-item glass" style={{ padding: '15px', borderRadius: '20px', textAlign: 'center' }}>
