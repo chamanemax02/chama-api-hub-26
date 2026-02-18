@@ -8,28 +8,50 @@ const router = express.Router();
  */
 async function googleSearch(query) {
     try {
-        const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&udm=14&gl=us&hl=en`;
+        // Using gbv=1 (Google Basic View) for ultra-stable scraping
+        const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&gbv=1&gl=us&hl=en`;
         const { data } = await axios.get(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             },
             timeout: 10000
         });
         const $ = cheerio.load(data), results = [];
-        $('.g, .MjjYud').each((i, el) => {
+
+        // Basic view usually uses different classes
+        $('div.g, .ZIN8Ne').each((i, el) => {
             const title = $(el).find('h3').first().text().trim();
-            const link = $(el).find('a').first().attr('href');
-            const snippet = $(el).find('div[style*="-webkit-line-clamp"]').text().trim() || $(el).find('.VwiC3b').text().trim();
-            if (title && link && link.startsWith('http')) results.push({ title, link, snippet: snippet || "No description available." });
+            let link = $(el).find('a').first().attr('href');
+            const snippet = $(el).find('.VwiC3b, .st, .yDyt9d').text().trim();
+
+            if (link && link.startsWith('/url?q=')) {
+                link = new URLSearchParams(link.split('?')[1]).get('q');
+            }
+
+            if (title && link && link.startsWith('http')) {
+                results.push({
+                    title,
+                    link,
+                    snippet: snippet || "Click to view full content on the external site."
+                });
+            }
         });
+
+        // Fallback for different HTML structures
         if (results.length === 0) {
-            $('a > h3').each((i, el) => {
-                const title = $(el).text(), link = $(el).parent().attr('href');
-                if (title && link && link.startsWith('http')) results.push({ title, link, snippet: "Click to view details." });
+            $('a').each((i, el) => {
+                const h3 = $(el).find('h3');
+                let href = $(el).attr('href');
+                if (h3.length > 0 && href) {
+                    if (href.startsWith('/url?q=')) href = new URLSearchParams(href.split('?')[1]).get('q');
+                    if (href && href.startsWith('http')) {
+                        results.push({ title: h3.text().trim(), link: href, snippet: "Verified search result match." });
+                    }
+                }
             });
         }
+
         return { status: true, total: results.length, result: results.slice(0, 15) };
     } catch (e) { return { status: false, error: e.message }; }
 }
