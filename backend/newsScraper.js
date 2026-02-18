@@ -107,7 +107,7 @@ const SOURCES = {
     },
     itnnews: {
         name: 'ITN News',
-        url: 'https://www.itnnews.lk/feed/',
+        url: 'https://www.itnnews.lk/category/local/feed/',
         type: 'rss',
         baseUrl: 'https://www.itnnews.lk'
     },
