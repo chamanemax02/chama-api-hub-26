@@ -6,8 +6,8 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/((?!assets/|logo.png|homelogo.jpg|vite.svg|favicon.ico).*)",
-      "destination": "/api/index.js"
+      "source": "/((?!api|assets/|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ]
 }
