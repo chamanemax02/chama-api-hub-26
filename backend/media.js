@@ -344,36 +344,44 @@ router.get("/mp3_v2", async (req, res) => {
 });
 
 
-// Facebook Multi-Provider (Auto Fallback)
+// Facebook Multi-Provider (Resilient Auto Fallback)
 router.get("/facebook", async (req, res) => {
     let url = req.query.url;
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
+    // Normalize and expand short links
     if (url.includes('facebook.com/share/') || url.includes('fb.watch') || url.includes('facebook.com/reel')) {
         url = await expandUrl(url);
     }
+
     try {
+        // 1. Try fget.io (Primary)
         const fgetRes = await fgetFacebook(url);
-        if (fgetRes.status) return res.json({ creator: "Chama Ofc", ...fgetRes });
+        if (fgetRes.status) return res.json({ creator: baseInfo.creator, ...fgetRes });
+
+        // 2. Try expertsphp (Secondary)
         const expRes = await expertsphpFacebook(url);
-        if (expRes.status) return res.json({ creator: "Chama Ofc", result: expRes });
+        if (expRes.status) return res.json({ creator: baseInfo.creator, result: expRes });
+
+        // 3. Try solutionexist (Fallback)
         const solRes = await solutionexistFacebook(url);
-        if (solRes.status) return res.json({ creator: "Chama Ofc", status: true, result: solRes });
-        const { data } = await axios.post("https://snapsave.app/action.php?lang=en", `url=${encodeURIComponent(url)}`, {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Mozilla/5.0' }
-        });
-        if (data.includes('eval(function')) {
-            const runner = new Function(data.replace('eval(function', 'return (function'));
-            const $ = cheerio.load(runner());
-            const results = [];
-            $('.table tbody tr').each((i, el) => {
-                const quality = $(el).find('.video-quality').text().trim();
-                const link = $(el).find('.download-link').attr('href');
-                if (link) results.push({ quality, url: link });
+        if (solRes.status) return res.json({ creator: baseInfo.creator, status: true, result: solRes });
+
+        // 4. Try Snapsave / Savefrom Logic (Advanced)
+        const sfResults = await savefrom(url);
+        if (sfResults && sfResults.length > 0) {
+            return res.json({
+                creator: baseInfo.creator,
+                status: true,
+                result: sfResults.map(r => ({ quality: r.quality || 'HD', url: r.url }))
             });
-            if (results.length > 0) return res.json({ creator: "Chama Ofc", status: true, result: results });
         }
-    } catch (e) { console.error(e); }
-    return res.status(500).json({ status: false, error: "Facebook extraction failed" });
+
+        throw new Error("All extraction nodes exhausted");
+    } catch (e) {
+        console.error("[FB DL Error]", e.message);
+        return res.status(500).json({ status: false, error: "Facebook extraction failed", msg: e.message });
+    }
 });
 
 // Facebook specific (fget)
@@ -448,19 +456,42 @@ router.get("/ytmp4", async (req, res) => {
 router.get("/tiktok", async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
     try {
-        const { data } = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-        if (data.code !== 0) throw new Error(data.msg || "Tiktok fetch failed");
-        return res.json({
-            status: true,
-            creator: baseInfo.creator,
-            title: data.data.title,
-            cover: `https://www.tikwm.com${data.data.cover}`,
-            no_watermark: `https://www.tikwm.com${data.data.play}`,
-            music: `https://www.tikwm.com${data.data.music}`
+        // 1. Try TikWM (Primary)
+        const { data } = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
+            timeout: 10000,
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
+
+        if (data && data.code === 0 && data.data) {
+            return res.json({
+                status: true,
+                creator: baseInfo.creator,
+                title: data.data.title || "TikTok Video",
+                cover: data.data.cover ? `https://www.tikwm.com${data.data.cover}` : null,
+                no_watermark: data.data.play ? `https://www.tikwm.com${data.data.play}` : null,
+                music: data.data.music ? `https://www.tikwm.com${data.data.music}` : null,
+                author: data.data.author?.nickname
+            });
+        }
+
+        // 2. Try Tiklydown (Secondary Fallback)
+        const tikly = await axios.get(`https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`, { timeout: 10000 });
+        if (tikly.data && tikly.data.video) {
+            return res.json({
+                status: true,
+                creator: baseInfo.creator,
+                title: tikly.data.title,
+                cover: tikly.data.video.cover,
+                no_watermark: tikly.data.video.noWatermark,
+                music: tikly.data.music.play_url
+            });
+        }
+
+        throw new Error("Failed to extract TikTok media from current nodes");
     } catch (e) {
-        return res.status(500).json({ status: false, error: e.message });
+        return res.status(500).json({ status: false, error: "TikTok extraction failed", msg: e.message });
     }
 });
 
