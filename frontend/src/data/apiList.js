@@ -996,6 +996,21 @@ export const apiList = [
         isNew: true,
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=askai.free&sz=128"
     },
+    {
+        id: 'ai_image_crictos',
+        category: 'AI Tools',
+        name: "AI Image Gen (Crictos)",
+        desc: "High-quality AI image generator (CRICTOS Engine)",
+        endpoint: "/api/ai/image/crictos",
+        params: [
+            { name: "p", label: "Image Prompt (e.g. 'a futuristic city')" }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        responseType: "image",
+        icon: "https://img.icons8.com/color/512/sparkler.png"
+    },
 
 
     // ==================== NEWS ====================
