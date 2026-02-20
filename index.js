@@ -102,9 +102,6 @@ app.use("/api/adult", checkBalance(1), mediaRouter);
 app.use("/api/tools", checkBalance(1), toolsRouter);
 app.get("/api/ai/image/zoner", checkBalance(1), aiImgHandler);
 
-// Root /api info
-
-
 app.get("/api/health", (req, res) => {
   res.json({ status: true, message: "Server is ALIVE", timestamp: new Date().toISOString() });
 });
@@ -113,11 +110,8 @@ app.get("/api/health", (req, res) => {
 const publicPath = path.join(__dirname, "public");
 app.use(express.static(publicPath));
 
-// SPA Catch-all
 // SPA Catch-all & API 404
 app.all('*', (req, res) => {
-  // If it's a backend API route that wasn't matched above, return 404 JSON
-  // Only match /api or /api/... but NOT /apis...
   const isBackend = req.path === '/api' || (req.path.startsWith('/api/') && !req.path.startsWith('/apis'));
 
   if (isBackend) {
@@ -130,7 +124,6 @@ app.all('*', (req, res) => {
   if (require('fs').existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    // Only log if not found (reduce noise)
     if (req.method === 'GET') {
       console.error(`Frontend directory: ${publicPath}`);
       console.error(`Index not found at: ${indexPath}`);
@@ -158,5 +151,5 @@ if (!process.env.VERCEL && !process.env.NETLIFY && typeof addEventListener === '
   });
 }
 
-// Export for Vercel/Node
+// Export for Vercel/Node/Netlify (Strictly CommonJS)
 module.exports = app;
