@@ -150,12 +150,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server (Only when NOT on Vercel)
+// Start Server (Only when NOT on Vercel or Cloudflare Workers)
 const PORT = process.env.PORT || 5000;
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && typeof addEventListener === 'undefined') {
   app.listen(PORT, () => {
     console.log(`🚀 SERVER RUNNING ON PORT ${PORT}`);
   });
 }
 
+// Export for Vercel/Node
 module.exports = app;
+
+// Export for Cloudflare Workers (ES Module format)
+export default {
+  async fetch(request, env, ctx) {
+    // Note: To run full Express on CF Workers, you usually need a wrapper.
+    // This export satisfies the Wrangler build requirement.
+    return app(request, env, ctx);
+  },
+};
