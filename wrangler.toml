@@ -1,6 +1,6 @@
-name = "chama-api-hub-26"
+name = "chama-api-hub-28"
 main = "index.js"
-compatibility_date = "2024-02-20"
+compatibility_date = "2024-09-23"
 compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
