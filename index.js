@@ -150,9 +150,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server (Only when NOT on Vercel or Cloudflare Workers)
+// Start Server (Only when NOT on Vercel, Netlify, or Cloudflare Workers)
 const PORT = process.env.PORT || 5000;
-if (!process.env.VERCEL && typeof addEventListener === 'undefined') {
+if (!process.env.VERCEL && !process.env.NETLIFY && typeof addEventListener === 'undefined') {
   app.listen(PORT, () => {
     console.log(`🚀 SERVER RUNNING ON PORT ${PORT}`);
   });
