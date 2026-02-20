@@ -160,12 +160,3 @@ if (!process.env.VERCEL && !process.env.NETLIFY && typeof addEventListener === '
 
 // Export for Vercel/Node
 module.exports = app;
-
-// Export for Cloudflare Workers (ES Module format)
-export default {
-  async fetch(request, env, ctx) {
-    // Note: To run full Express on CF Workers, you usually need a wrapper.
-    // This export satisfies the Wrangler build requirement.
-    return app(request, env, ctx);
-  },
-};
