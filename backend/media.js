@@ -3,6 +3,7 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const crypto = require("crypto");
 const qs = require("qs");
+const { shortenUrl } = require("./shortener");
 const router = express.Router();
 
 
@@ -328,6 +329,7 @@ router.get("/mp3_v2", async (req, res) => {
 
     try {
         const result = await fetchSsYoutubeMp3(url);
+        const shortLink = await shortenUrl(result.dl_link);
         return res.json({
             creator: baseInfo.creator,
             status: true,
@@ -335,7 +337,7 @@ router.get("/mp3_v2", async (req, res) => {
                 type: "audio",
                 format: "mp3",
                 title: result.title,
-                dl_link: result.dl_link
+                dl_link: shortLink
             }
         });
     } catch (e) {
@@ -410,6 +412,7 @@ router.get("/ytmp3", async (req, res) => {
 
     try {
         const result = await fetchY2Mate(url, "mp3");
+        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -420,7 +423,7 @@ router.get("/ytmp3", async (req, res) => {
                 quality: "128kbps",
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: result.download_url
+                download_url: shortLink
             }
         });
     } catch (e) {
@@ -435,6 +438,7 @@ router.get("/ytmp4", async (req, res) => {
 
     try {
         const result = await fetchY2Mate(url, quality);
+        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -445,7 +449,7 @@ router.get("/ytmp4", async (req, res) => {
                 quality: quality + "p",
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: result.download_url
+                download_url: shortLink
             }
         });
     } catch (e) {
@@ -1006,6 +1010,48 @@ router.get("/mp4_v3", async (req, res) => {
         }
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
+    }
+});
+
+/**
+ * APK Download (Aptoide)
+ * GET /apkdownload?id=PACKAGE_NAME
+ */
+router.get("/apkdownload", async (req, res) => {
+    const id = (req.query.id || "").trim();
+    if (!id) return res.status(400).json({ success: false, error: "Missing package id" });
+    try {
+        const url = `https://ws75.aptoide.com/api/7/app/get?package_name=${encodeURIComponent(id)}`;
+        const { data } = await axios.get(url, { timeout: 10000 });
+        if (data.status === 'fail') {
+            return res.status(404).json({ success: false, creator: "@Tharuzz-ofc", code: 404, error: "App not found" });
+        }
+        const app = data.nodes.meta.data;
+        const file = data.nodes.file.data;
+        let dlLink = file.path;
+        // Ensure the link ends with .apk for consistency
+        if (!dlLink.toLowerCase().endsWith('.apk')) {
+            dlLink += dlLink.includes('?') ? '&file=.apk' : '?file=.apk';
+        }
+
+        const shortLink = await shortenUrl(dlLink);
+        const result = {
+            name: app.name,
+            lastUpdate: app.updated,
+            package: app.package,
+            size: (file.filesize / (1024 * 1024)).toFixed(2) + " MB",
+            image: app.icon,
+            dl_link: shortLink
+        };
+        return res.json({
+            success: true,
+            creator: "@Tharuzz-ofc",
+            code: 200,
+            result
+        });
+    } catch (e) {
+        console.error(`Error in /apkdownload:`, e.message);
+        return res.status(500).json({ success: false, creator: "@Tharuzz-ofc", code: 500, error: "Aptoide API Error" });
     }
 });
 
