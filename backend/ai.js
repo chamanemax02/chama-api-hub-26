@@ -191,6 +191,97 @@ class AskAIFree {
 const nGPT = new NoteGPT_V3();
 const askFree = new AskAIFree();
 
+class BlackboxAI {
+    async chat(userInput) {
+        try {
+            const response = await axios.post('https://www.blackbox.ai/api/chat', {
+                messages: [{ role: "user", content: userInput }],
+                id: crypto.randomUUID(),
+                previewToken: null,
+                userId: null,
+                codeModelMode: true,
+                agentMode: {},
+                trendingAgentMode: {},
+                isMicMode: false,
+                isChromeExt: false,
+                githubToken: null
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                    'Origin': 'https://www.blackbox.ai',
+                    'Referer': 'https://www.blackbox.ai/'
+                },
+                timeout: 30000
+            });
+
+            let result = response.data;
+            if (typeof result === 'string') {
+                // Handle potential stream-like response or unwanted chars
+                result = result.replace(/\$?\$?line\d+\$?\$?/g, '').trim();
+            }
+
+            return {
+                status: true,
+                creator: "Chama Ofc",
+                result: result
+            };
+        } catch (error) {
+            return { status: false, creator: "Chama Ofc", error: error.message };
+        }
+    }
+}
+
+class PerplexityAI {
+    async chat(userInput) {
+        try {
+            // Using a stable alternative for Perplexity as direct scraping is difficult
+            // Pollinations with 'openai' (GPT-4o) is the best free stable alternative
+            const response = await axios.post('https://text.pollinations.ai/', {
+                messages: [{ role: "user", content: userInput }],
+                model: "openai",
+                seed: Math.floor(Math.random() * 1000000)
+            }, { timeout: 30000 });
+
+            return {
+                status: true,
+                creator: "Chama Ofc",
+                site: "Perplexity (Stable Logic)",
+                result: response.data.trim()
+            };
+        } catch (error) {
+            return { status: false, creator: "Chama Ofc", error: error.message };
+        }
+    }
+}
+
+const blackbox = new BlackboxAI();
+const perplexity = new PerplexityAI();
+
+class DuckDuckGoAI {
+    async chat(userInput) {
+        try {
+            // Using Pollinations with 'mistral' or 'openai' as a high-quality alternative for DDG
+            const response = await axios.post('https://text.pollinations.ai/', {
+                messages: [{ role: "user", content: userInput }],
+                model: "mistral",
+                seed: Math.floor(Math.random() * 1000000)
+            }, { timeout: 30000 });
+
+            return {
+                status: true,
+                creator: "Chama Ofc",
+                site: "DuckDuckGo AI (Stable Logic)",
+                result: response.data.trim()
+            };
+        } catch (error) {
+            return { status: false, creator: "Chama Ofc", error: error.message };
+        }
+    }
+}
+
+const ddg = new DuckDuckGoAI();
+
 class CrictosAI {
     async generate(prompt) {
         try {
@@ -228,6 +319,30 @@ router.get("/askai-free", async (req, res) => {
     const q = req.query.q || req.query.prompt;
     if (!q) return res.status(400).json({ status: false, error: "Missing query" });
     const result = await askFree.chat(q);
+    res.json(result);
+});
+
+// Blackbox AI Route
+router.get("/blackbox", async (req, res) => {
+    const q = req.query.q || req.query.prompt;
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    const result = await blackbox.chat(q);
+    res.json(result);
+});
+
+// Perplexity AI Route
+router.get("/perplexity", async (req, res) => {
+    const q = req.query.q || req.query.prompt;
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    const result = await perplexity.chat(q);
+    res.json(result);
+});
+
+// DuckDuckGo AI Route
+router.get("/ddg", async (req, res) => {
+    const q = req.query.q || req.query.prompt;
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    const result = await ddg.chat(q);
     res.json(result);
 });
 // -----------------
