@@ -305,6 +305,11 @@ class CrictosAI {
 }
 const crictos = new CrictosAI();
 
+// Debug Route
+router.get("/test", (req, res) => {
+    res.json({ status: true, message: "AI Router is REACHABLE" });
+});
+
 // NoteGPT V3 Routes
 router.get("/notegpt-v3", async (req, res) => {
     const q = req.query.q || req.query.prompt;
