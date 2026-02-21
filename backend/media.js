@@ -469,13 +469,16 @@ router.get("/tiktok", async (req, res) => {
         });
 
         if (data && data.code === 0 && data.data) {
+            const noWm = data.data.play ? `https://www.tikwm.com${data.data.play}` : null;
+            const music = data.data.music ? `https://www.tikwm.com${data.data.music}` : null;
+
             return res.json({
                 status: true,
                 creator: baseInfo.creator,
                 title: data.data.title || "TikTok Video",
                 cover: data.data.cover ? `https://www.tikwm.com${data.data.cover}` : null,
-                no_watermark: data.data.play ? `https://www.tikwm.com${data.data.play}` : null,
-                music: data.data.music ? `https://www.tikwm.com${data.data.music}` : null,
+                no_watermark: await shortenUrl(noWm),
+                music: await shortenUrl(music),
                 author: data.data.author?.nickname
             });
         }
