@@ -461,6 +461,18 @@ export const apiList = [
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=cinesubz.lk&sz=128"
     },
     {
+        id: 'movie_sinhalasub_direct_ultra',
+        category: 'Movies',
+        name: "Sinhala Sub: Direct DL (ULTRA)",
+        desc: "Get direct 480p/720p/1080p download links from any Sinhala Sub movie page (Direct MP4)",
+        endpoint: "/api/movie/download",
+        params: [{ name: "url", label: "Movie Page URL (Cinesubz/Sinhalasub)" }],
+        type: "GET",
+        isNew: true,
+        status: "working",
+        icon: "https://img.icons8.com/color/512/download-from-cloud.png"
+    },
+    {
         id: 'movie_cinesubz_search_ultra',
         category: 'Movies',
         name: "CineSubz: Ultra Search",
