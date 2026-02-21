@@ -44,16 +44,18 @@ const scrubInput = (obj) => {
 };
 
 const securityShield = (req, res, next) => {
-    const isAiRoute = req.path.includes('/ai/') || req.path.includes('/chat/');
-    if (!isAiRoute) {
-        scrubInput(req.body);
-        scrubInput(req.query);
-    }
+    const fullPath = req.originalUrl || req.path;
+    const isAiRoute = fullPath.includes('/ai/') || fullPath.includes('/chat/') || fullPath.includes('/support/');
+
     if (isAiRoute) return next();
+
+    scrubInput(req.body);
+    scrubInput(req.query);
+
     const rawData = JSON.stringify({ query: req.query, body: req.body }).toLowerCase();
     for (const pattern of attackPatterns) {
         if (pattern.test(rawData)) {
-            console.warn(`[SECURITY] Blocked: ${pattern} from IP: ${req.ip}`);
+            console.warn(`[SECURITY] Blocked: ${pattern} from IP: ${req.ip} | Path: ${fullPath}`);
             return res.status(403).json({ status: false, error: "Security Shield: Malicious signature blocked." });
         }
     }
@@ -70,13 +72,19 @@ const checkBalance = (cost = 1) => {
         let user;
         if (apikey !== "chama_mini_api") {
             user = await DB.getUserByKey(apikey);
-            if (!user) return res.status(401).json({ status: false, error: "Invalid API Key." });
+            if (!user) {
+                console.warn(`[AUTH] Invalid API Key: ${apikey} from IP: ${req.ip}`);
+                return res.status(401).json({ status: false, error: "Invalid API Key." });
+            }
 
             const coinSettings = await DB.getCoinsSetting();
             if (coinSettings.enabled && user.role !== 'admin') {
                 const requiredCoins = cost || coinSettings.costPerRequest || 1;
                 const userCoins = user.coins || 0;
-                if (userCoins < requiredCoins) return res.status(403).json({ status: false, error: "Insufficient Coins.", coins: userCoins });
+                if (userCoins < requiredCoins) {
+                    console.warn(`[COINS] Insufficient: ${user.email} has ${userCoins}, needs ${requiredCoins}`);
+                    return res.status(403).json({ status: false, error: "Insufficient Coins.", coins: userCoins });
+                }
                 res.locals.user = user;
                 res.locals.cost = requiredCoins;
             }
