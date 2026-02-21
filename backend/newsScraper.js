@@ -61,7 +61,7 @@ const SOURCES = {
     },
     dinamina: {
         name: 'Dinamina',
-        url: 'https://news.google.com/rss/search?q=site:dinamina.lk&hl=si&gl=LK&ceid=LK:si',
+        url: 'https://www.dinamina.lk/feed/',
         type: 'rss',
         baseUrl: 'https://www.dinamina.lk'
     },
