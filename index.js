@@ -76,30 +76,24 @@ app.get("/api", (req, res) => {
   });
 });
 
-// 4. Routes Registration
+// 4. Routes Registration (Specific routes first to avoid collisions)
+app.use("/api/ai", checkBalance(1), aiRouter);
 app.use("/api/news", newsRouter);
-app.use("/api/auth", systemRouter);
-app.use("/api/system", systemRouter); // Keep a backup mounting point
-app.use("/api", systemRouter); // Maintain backward compatibility for non-auth system routes
 app.use("/api/academic", checkBalance(1), academicRouter);
 app.use("/api/sticker", checkBalance(1), stickerRouter);
 app.use("/api/movie", checkBalance(1), movieRouter);
-app.use("/api/movie_v2", checkBalance(1), movieRouter);
 app.use("/api/search", checkBalance(1), searchRouter);
-app.use("/api/apk", checkBalance(1), searchRouter);
-app.use("/api/lyrics", checkBalance(1), searchRouter);
-app.use("/api/pastpapers", checkBalance(1), searchRouter);
 app.use("/api/media", checkBalance(1), mediaRouter);
-app.use("/api/download", checkBalance(1), mediaRouter);
-// Expose all media routes directly under /api (e.g. /api/spotify, /api/facebook)
-app.use("/api", checkBalance(1), mediaRouter);
-
-app.use("/api/ai", checkBalance(1), aiRouter);
 app.use("/api/image", checkBalance(1), imageRouter);
-app.use("/api/ephoto", checkBalance(1), imageRouter);
 app.use("/api/anime", checkBalance(1), animeRouter);
-app.use("/api/adult", checkBalance(1), mediaRouter);
 app.use("/api/tools", checkBalance(1), toolsRouter);
+
+// Generic / Catch-all mounts for legacy support
+app.use("/api/auth", systemRouter);
+app.use("/api/system", systemRouter);
+app.use("/api", systemRouter);
+app.use("/api", checkBalance(1), mediaRouter); // Final fallback for root /api downloads
+
 app.get("/api/ai/image/zoner", checkBalance(1), aiImgHandler);
 
 app.get("/api/health", (req, res) => {
