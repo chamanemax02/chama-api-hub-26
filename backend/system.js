@@ -138,6 +138,17 @@ router.get('/user-data', async (req, res) => {
     res.json({ status: true, user });
 });
 
+// API Key Regeneration
+router.post('/regen-key', async (req, res) => {
+    const { uid } = req.body;
+    if (!uid) return res.status(400).json({ status: false, error: "UID required" });
+    try {
+        const apikey = await DB.regenerateKey(uid);
+        if (!apikey) return res.status(404).json({ status: false, error: "User not found" });
+        res.json({ status: true, message: "Key regenerated", apikey });
+    } catch (e) { res.status(500).json({ status: false, error: e.message }); }
+});
+
 // News Routes
 router.get('/news/list', async (req, res) => {
     const news = await DB.getNews();
