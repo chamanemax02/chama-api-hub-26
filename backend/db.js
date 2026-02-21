@@ -70,6 +70,13 @@ const DB = {
                     role: isAdmin ? 'admin' : (existing.role || 'user'),
                     lastLogin: new Date().toISOString()
                 };
+
+                // Ensure they have an API key
+                if (!updated.apikey) {
+                    updated.apikey = generateKey();
+                    await set(ref(db, `keys/${updated.apikey}`), uid);
+                }
+
                 await update(ref(db, `users/${uid}`), updated);
                 return updated;
             }
