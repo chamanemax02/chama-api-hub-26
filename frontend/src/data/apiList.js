@@ -287,59 +287,88 @@ export const apiList = [
         type: "GET",
         icon: "https://img.icons8.com/color/512/search-property.png"
     },
-    // ==================== APK SEARCH & DOWNLOAD ====================
+    // ==================== APK SEARCH & DOWNLOAD (v2 ULTRA) ====================
+    {
+        id: 'apk_search_v2',
+        category: 'Downloads',
+        name: "APK Search: Ultra v2",
+        desc: "Find any Android app by name or package ID (@Tharuzz-ofc)",
+        endpoint: "/api/search/apksearch",
+        params: [{ name: "query", label: "Search Query" }],
+        type: "GET",
+        isNew: true,
+        status: "working",
+        icon: "https://img.icons8.com/color/512/android-os.png"
+    },
+    {
+        id: 'apk_download_v2',
+        category: 'Downloads',
+        name: "APK Download: Ultra v2",
+        desc: "Get direct high-speed download links for any APK (@Tharuzz-ofc)",
+        endpoint: "/api/download/apkdownload",
+        params: [{ name: "id", label: "Package ID (e.g. com.whatsapp)" }],
+        type: "GET",
+        isNew: true,
+        status: "working",
+        icon: "https://img.icons8.com/color/512/download-from-cloud.png"
+    },
     {
         id: 'apk_search_global',
         category: 'Downloads',
         name: "APK: Search & Download",
-        desc: "Search and get download links for any app",
+        desc: "General purpose APK search and direct downloader",
         endpoint: "/api/search/apk",
         params: [{ name: "q", label: "App Name" }],
         type: "GET",
+        status: "working",
         icon: "https://cdn-icons-png.flaticon.com/512/888/888841.png"
     },
     {
         id: 'apk_an1',
         category: 'Downloads',
-        name: "APK: AN1 (MOD)",
-        desc: "Search and download MOD APKs from AN1",
+        name: "APK: AN1 (MOD Search)",
+        desc: "Search for premium MOD APKs from AN1.com",
         endpoint: "/api/apk/an1/search",
         params: [{ name: "q", label: "App Name" }],
         type: "GET",
         isNew: true,
+        status: "working",
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=an1.com&sz=128"
     },
     {
         id: 'apk_happymod',
         category: 'Downloads',
-        name: "APK: HappyMod",
-        desc: "Get 100% working mods from HappyMod",
+        name: "APK: HappyMod (MOD Search)",
+        desc: "Get working mods from HappyMod ecosystem",
         endpoint: "/api/apk/happymod/search",
         params: [{ name: "q", label: "App Name" }],
         type: "GET",
         isNew: true,
+        status: "working",
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=happymod.com&sz=128"
     },
     {
         id: 'apk_apkpure',
         category: 'Downloads',
-        name: "APK: APKPure",
-        desc: "Download official APKs from APKPure",
+        name: "APK: APKPure Search",
+        desc: "Official APK search via APKPure engine",
         endpoint: "/api/apk/apkpure/search",
         params: [{ name: "q", label: "App Name" }],
         type: "GET",
         isNew: true,
+        status: "working",
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=apkpure.com&sz=128"
     },
     {
         id: 'apk_uptodown',
         category: 'Downloads',
-        name: "APK: Uptodown",
-        desc: "Secure APK downloads from Uptodown",
+        name: "APK: Uptodown Search",
+        desc: "Secure APK search via Uptodown mirror",
         endpoint: "/api/apk/uptodown/search",
         params: [{ name: "q", label: "App Name" }],
         type: "GET",
         isNew: true,
+        status: "working",
         icon: "https://s2.googleusercontent.com/s2/favicons?domain=uptodown.com&sz=128"
     },
 
@@ -1010,6 +1039,48 @@ export const apiList = [
         isNew: true,
         responseType: "image",
         icon: "https://img.icons8.com/color/512/sparkler.png"
+    },
+    {
+        id: 'ai_blackbox',
+        category: 'AI Tools',
+        name: "Blackbox AI",
+        desc: "Advanced coding and reasoning AI (Blackbox Engine)",
+        endpoint: "/api/ai/blackbox",
+        params: [
+            { name: "q", label: "Ask Blackbox..." }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://s2.googleusercontent.com/s2/favicons?domain=blackbox.ai&sz=128"
+    },
+    {
+        id: 'ai_perplexity',
+        category: 'AI Tools',
+        name: "Perplexity AI",
+        desc: "Search-enhanced AI for up-to-date information",
+        endpoint: "/api/ai/perplexity",
+        params: [
+            { name: "q", label: "Search with Perplexity..." }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://s2.googleusercontent.com/s2/favicons?domain=perplexity.ai&sz=128"
+    },
+    {
+        id: 'ai_ddg',
+        category: 'AI Tools',
+        name: "DuckDuckGo AI",
+        desc: "Privacy-focused AI chat (Powered by Llama/Mistral)",
+        endpoint: "/api/ai/ddg",
+        params: [
+            { name: "q", label: "Ask DDG AI..." }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://s2.googleusercontent.com/s2/favicons?domain=duckduckgo.com&sz=128"
     },
 
 
