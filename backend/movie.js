@@ -121,7 +121,6 @@ async function fetchCinesubzDetails(url) {
             } catch (e) { videoUrl = iframeSrc; }
         }
 
-        // Meta tag extraction for direct video
         if (!videoUrl) videoUrl = $('meta[property="og:video"]').attr('content') || $('meta[property="og:video:url"]').attr('content') || $('meta[name="twitter:player:stream"]').attr('content');
         if (!videoUrl) videoUrl = $('#splash-play').attr('href');
 
@@ -140,7 +139,6 @@ async function fetchCinesubzDetails(url) {
             if (name) cast.push({ name, role, photo });
         });
         const downloadOptions = [];
-        // Add direct videoUrl from iframe/meta/splash if found
         if (videoUrl) {
             const isDirect = videoUrl.includes('.mp4') || videoUrl.includes('csplayer2.space');
             downloadOptions.push({ quality: isDirect ? "Direct MP4" : "Direct/Stream", size: "High Speed", url: videoUrl });
@@ -223,14 +221,16 @@ const PROVIDERS = {
     "srihub": { name: "Srihub", domain: "srihub.store", searchUrl: "https://srihub.store/?s=", type: "dooplay" },
     "moviesub": { name: "Moviesub", domain: "moviesub.is", searchUrl: "https://moviesub.is/?s=", type: "dooplay" },
     "dinka": { name: "Dinka", domain: "dinkamovieslk.app", searchUrl: "https://www.dinkamovieslk.app/search?q=", type: "blogger" },
-    "subslk": { name: "Subslk", domain: "subzlk.com", searchUrl: "https://subzlk.com/?s=", type: "dooplay" }
+    "subslk": { name: "Subslk", domain: "subzlk.com", searchUrl: "https://subzlk.com/?s=", type: "dooplay" },
+    "sinhalasubhub": { name: "Sinhalasubhub", domain: "sinhalasubhub.lk", searchUrl: "https://sinhalasubhub.lk/?s=", type: "dooplay" }
 };
 
 const ALIASES = {
     "sinhalasubz": "sinhalasub",
     "cinesub": "cinesubz",
     "dinkamovies": "dinka",
-    "subzlk": "subslk"
+    "subzlk": "subslk",
+    "subhub": "sinhalasubhub"
 };
 
 // Main Routes
@@ -377,7 +377,6 @@ async function handleMovieDetails(url) {
     const { data } = await axios.get(url, { headers: COMMON_HEADERS, timeout: 20000 });
     const $ = cheerio.load(data), title = $('h1').first().text().trim(), download = [];
 
-    // 1. Check for iframe source (Highest Priority for Direct Link)
     const iframeSrc = $('.metaframe, iframe.metaframe').attr('src');
     if (iframeSrc) {
         try {
@@ -393,17 +392,12 @@ async function handleMovieDetails(url) {
         } catch (e) { }
     }
 
-    // 2. Check meta tags for direct video
     const metaVideo = $('meta[property="og:video"]').attr('content') || $('meta[property="og:video:url"]').attr('content') || $('meta[name="twitter:player:stream"]').attr('content');
-    if (metaVideo) {
-        download.push({ name: 'Direct Stream (Meta)', url: metaVideo });
-    }
+    if (metaVideo) download.push({ name: 'Direct Stream (Meta)', url: metaVideo });
 
-    // 3. Check splash button
     const splashLink = $('#splash-play').attr('href');
     if (splashLink) download.push({ name: 'Player/Stream', url: splashLink });
 
-    // 4. Resolve standard download buttons
     const linkPromises = [];
     $('.zt-links-list .zt-link, .download-link').each((i, el) => {
         const l = $(el).find('a').attr('href');
@@ -430,7 +424,6 @@ router.get("/cinesubz-download", async (req, res) => {
         if (!url) return res.status(400).json({ status: false, error: "Missing url" });
         const details = await handleMovieDetails(url);
 
-        // Priority Selection
         const directHighSpeed = details.download.find(d => d.url && (d.url.includes('.mp4') || d.url.includes('csplayer2.space')));
         const sonic = details.download.find(d => d.url && d.url.includes('sonic-cloud'));
         const pixeldrain = details.download.find(d => d.url && d.url.includes('pixeldrain'));
@@ -438,11 +431,85 @@ router.get("/cinesubz-download", async (req, res) => {
 
         const target = directHighSpeed || sonic || pixeldrain || gdrive || details.download[0];
 
-        if (target && target.url) {
-            return res.redirect(target.url);
+        if (target && target.url) return res.redirect(target.url);
+        return res.status(404).json({ status: false, error: "No suitable download links found for redirect" });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+/**
+ * Universal Download Resolver
+ * Returns direct download link for a movie page
+ */
+router.get("/download", async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
+    try {
+        let provider = "unknown";
+        for (const [key, p] of Object.entries(PROVIDERS)) {
+            if (url.includes(p.domain)) {
+                provider = key;
+                break;
+            }
         }
 
-        return res.status(404).json({ status: false, error: "No suitable download links found for redirect" });
+        let title = "Unknown Movie";
+        let dl_link = null;
+
+        if (provider === "cinesubz") {
+            const details = await handleMovieDetails(url);
+            title = details.title;
+            const target = details.download.find(d => d.url && (d.url.includes('720p.mp4') || d.url.includes('1080p.mp4'))) ||
+                details.download.find(d => d.url && d.url.includes('.mp4')) ||
+                details.download.find(d => d.url && d.url.includes('csplayer2.space')) ||
+                details.download[0];
+
+            if (target) dl_link = target.url;
+        } else if (provider === "sinhalasub" || provider === "sinhalasubhub") {
+            const { data } = await axios.get(url, { headers: COMMON_HEADERS });
+            const $ = cheerio.load(data);
+            title = $('h1').first().text().trim();
+
+            let playerSrc = $('.metaframe, iframe.metaframe').attr('src');
+            if (playerSrc) {
+                try {
+                    const ps = new URL(playerSrc).searchParams.get('source');
+                    if (ps) dl_link = decodeURIComponent(ps);
+                    else if (playerSrc.includes('jwplayer')) dl_link = playerSrc;
+                } catch (e) { }
+            }
+
+            if (!dl_link) {
+                // Secondary check for direct buttons
+                $('a').each((i, el) => {
+                    const href = $(el).attr('href') || "";
+                    if (href.includes('.mp4') || href.includes('pixeldrain.com/u/') || href.includes('drive.google.com/file')) {
+                        dl_link = href;
+                        return false;
+                    }
+                });
+            }
+        } else {
+            const { data } = await axios.get(url, { headers: COMMON_HEADERS });
+            const $ = cheerio.load(data);
+            title = $('h1').first().text().trim();
+            dl_link = $('a[href*=".mp4"], a[href*="pixeldrain"], a[href*="drive.google"]').first().attr('href');
+        }
+
+        if (dl_link) {
+            if (dl_link.includes('pixeldrain.com/u/')) {
+                dl_link = dl_link.replace('/u/', '/api/file/') + "?download";
+            }
+            return res.json({
+                status: true,
+                creator: baseInfo.creator,
+                title,
+                dl_link,
+                info: "Add .mp4 extension when saving if file name is missing it."
+            });
+        }
+
+        return res.status(404).json({ status: false, error: "Direct download link not found" });
     } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
 });
 
