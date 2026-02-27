@@ -323,13 +323,215 @@ async function fetchSsYoutubeMp3(youtubeUrl) {
     }
 }
 
+/**
+ * Scraper: ytmp3.sc
+ * Reverse-engineered from the site's frontend AJAX flow.
+ * Uses their /api/convert endpoint with URL + format params.
+ */
+async function fetchYtmp3Sc(youtubeUrl, format = "mp3") {
+    try {
+        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
+            youtubeUrl.split('v=')[1]?.split('&')[0];
+        if (!videoId) throw new Error("Video ID not found");
+
+        // Step 1: Request conversion
+        const { data: initData } = await axios.post('https://ytmp3.sc/api/convert', qs.stringify({
+            id: videoId,
+            format: format === "mp3" ? "mp3" : "mp4"
+        }), {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': 'https://ytmp3.sc/',
+                'Origin': 'https://ytmp3.sc',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
+            },
+            timeout: 12000
+        });
+
+        if (!initData || !initData.url) throw new Error('No download URL in response');
+
+        return {
+            title: initData.title || `YouTube-${videoId}`,
+            download_url: initData.url,
+            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        };
+    } catch (e) { throw new Error(`ytmp3.sc: ${e.message}`); }
+}
+
+/**
+ * Scraper: ytmp3.gg
+ * Uses their backend API endpoint pattern seen in devtools network analysis.
+ */
+async function fetchYtmp3Gg(youtubeUrl, format = "mp3") {
+    try {
+        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
+            youtubeUrl.split('v=')[1]?.split('&')[0];
+        if (!videoId) throw new Error("Video ID not found");
+
+        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
+        const { data } = await axios.get(`https://ytmp3.gg/api/${endpoint}`, {
+            params: { id: videoId },
+            headers: {
+                'Referer': 'https://ytmp3.gg/',
+                'Origin': 'https://ytmp3.gg',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
+            },
+            timeout: 12000
+        });
+
+        if (!data || !data.url) throw new Error('No URL in response');
+
+        return {
+            title: data.title || `YouTube-${videoId}`,
+            download_url: data.url,
+            thumb: data.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        };
+    } catch (e) { throw new Error(`ytmp3.gg: ${e.message}`); }
+}
+
+/**
+ * Scraper: yt1s Ajax-style (yt1s.is / yt1s.biz pattern)
+ * Two-step: ajaxSearch -> ajaxConvert using video ID + k-value
+ */
+async function fetchYt1sAjax(youtubeUrl, format = "mp3") {
+    try {
+        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
+            youtubeUrl.split('v=')[1]?.split('&')[0];
+        if (!videoId) throw new Error("Video ID not found");
+
+        const baseHeaders = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0 Safari/537.36',
+            'Referer': 'https://yt1s.is/',
+            'Origin': 'https://yt1s.is'
+        };
+
+        // Step 1: Search/analyze
+        const searchPayload = qs.stringify({
+            q: youtubeUrl,
+            vt: format === "mp3" ? "mp3" : "mp4"
+        });
+        const { data: searchData } = await axios.post(
+            'https://yt1s.is/api/ajaxSearch/index',
+            searchPayload,
+            { headers: baseHeaders, timeout: 12000 }
+        );
+
+        if (!searchData || searchData.status !== 'ok') throw new Error('Search failed');
+
+        const kval = format === "mp3"
+            ? (searchData.links?.mp3?.mp3128?.k || Object.values(searchData.links?.mp3 || {})[0]?.k)
+            : (searchData.links?.mp4?.["720"]?.k || Object.values(searchData.links?.mp4 || {})[0]?.k);
+
+        if (!kval) throw new Error('k-value not found');
+
+        // Step 2: Convert
+        const convertPayload = qs.stringify({
+            vid: searchData.vid || videoId,
+            k: kval
+        });
+        const { data: convertData } = await axios.post(
+            'https://yt1s.is/api/ajaxConvert/convert',
+            convertPayload,
+            { headers: baseHeaders, timeout: 20000 }
+        );
+
+        if (!convertData || convertData.status !== 'ok' || !convertData.dlink) {
+            throw new Error('Conversion failed or no download link');
+        }
+
+        return {
+            title: searchData.title || `YouTube-${videoId}`,
+            download_url: convertData.dlink,
+            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        };
+    } catch (e) { throw new Error(`yt1s: ${e.message}`); }
+}
+
+async function fetchYouTubeResilient(url, format = "mp3", quality = "128") {
+    const errors = [];
+
+    // 1. Try Vyturex (Trusted Stable Node)
+    try {
+        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
+        const { data } = await axios.get(`https://api.vyturex.com/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
+        if (data && data.result && data.result.download_url) {
+            return {
+                title: data.result.title || "YouTube Media",
+                download_url: data.result.download_url,
+                thumb: data.result.thumbnail || `https://i.ytimg.com/vi/${url.split('v=')[1]?.split('&')[0]}/hqdefault.jpg`
+            };
+        }
+    } catch (e) { errors.push(`Vyturex: ${e.message}`); }
+
+    // 2. Try GiftedTech (Bot Multi-API)
+    try {
+        const endpoint = format === "mp3" ? "dlmp3" : "dlmp4";
+        const { data } = await axios.get(`https://api.giftedtech.my.id/api/download/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
+        if (data && data.success && data.result) {
+            return {
+                title: data.result.title || "YouTube Media",
+                download_url: data.result.download_url,
+                thumb: data.result.thumb || data.result.thumbnail || ""
+            };
+        }
+    } catch (e) { errors.push(`Gifted: ${e.message}`); }
+
+    // 3. Try Siputzx (Fast Scraper)
+    try {
+        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
+        const { data } = await axios.get(`https://api.siputzx.my.id/api/d/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
+        if (data && data.status && data.data) {
+            return {
+                title: data.data.title || "YouTube Media",
+                download_url: data.data.dl || data.data.url,
+                thumb: data.data.thumbnail || ""
+            };
+        }
+    } catch (e) { errors.push(`Siputzx: ${e.message}`); }
+
+    // 4. Try SSYoutube
+    try {
+        if (format === "mp3") {
+            const res = await fetchSsYoutubeMp3(url);
+            if (res && res.dl_link) return { title: res.title, download_url: res.dl_link, thumb: "" };
+        }
+    } catch (e) { errors.push(`SSYoutube: ${e.message}`); }
+
+    // 5. Try Y2Mate (Polled Scraper)
+    try {
+        const res = await fetchY2Mate(url, format === "mp3" ? "mp3" : quality);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(`Y2Mate: ${e.message}`); }
+
+    // 6. Try ytmp3.sc
+    try {
+        const res = await fetchYtmp3Sc(url, format);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(`ytmp3.sc: ${e.message}`); }
+
+    // 7. Try ytmp3.gg
+    try {
+        const res = await fetchYtmp3Gg(url, format);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(`ytmp3.gg: ${e.message}`); }
+
+    // 8. Try yt1s Ajax Scraper
+    try {
+        const res = await fetchYt1sAjax(url, format);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(`yt1s: ${e.message}`); }
+
+    throw new Error(`All download nodes failed: ${errors.join(' | ')}`);
+}
+
 router.get("/mp3_v2", async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
-        const result = await fetchSsYoutubeMp3(url);
-        const shortLink = await shortenUrl(result.dl_link);
+        const result = await fetchYouTubeResilient(url, "mp3");
+        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: true,
@@ -411,7 +613,7 @@ router.get("/ytmp3", async (req, res) => {
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
-        const result = await fetchY2Mate(url, "mp3");
+        const result = await fetchYouTubeResilient(url, "mp3");
         const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
@@ -437,7 +639,7 @@ router.get("/ytmp4", async (req, res) => {
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
-        const result = await fetchY2Mate(url, quality);
+        const result = await fetchYouTubeResilient(url, "mp4", quality);
         const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
@@ -575,6 +777,13 @@ router.get("/spotify", async (req, res) => {
     try {
         const result = await spotifyDownload(q);
         if (result.status) return res.json({ creator: baseInfo.creator, ...result });
+
+        // Fallback to a secondary node
+        const fbReq = await axios.get(`https://api.vyturex.com/spotify?url=${encodeURIComponent(q)}`, { timeout: 10000 });
+        if (fbReq.data && fbReq.data.result) {
+            return res.json({ creator: baseInfo.creator, status: true, result: fbReq.data.result });
+        }
+
         throw new Error(result.msg || "Spotify extraction failed");
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
@@ -688,10 +897,12 @@ router.get("/sinhanada/download", async (req, res) => {
             timeout: 10000
         });
         const $ = cheerio.load(data);
-        const title = $('.titelh, h1, .title').first().text().trim() || $('title').text().trim();
+        const title = $('.titelh, h1, .title, .entry-title').first().text().trim() || $('title').text().trim();
         let dl = $('a[href$=".mp3"]').first().attr('href') ||
             $('audio source').attr('src') ||
-            $('audio').attr('src');
+            $('audio').attr('src') ||
+            $('.btn-download').attr('href') ||
+            $('a:contains("Download")').attr('href');
 
         if (!dl) {
             // Check for buttons with ?download or similar
@@ -704,14 +915,12 @@ router.get("/sinhanada/download", async (req, res) => {
             });
         }
 
-        // If still not found, try many patterns
         if (!dl) {
             const match = data.match(/https?:\/\/[^\s"']+\.mp3(?:\?[^\s"']*)?/i);
-            if (match) dl = match[1];
+            if (match) dl = match[0];
         }
 
         if (!dl) {
-            // Fallback: use the page URL as download if it's a known download redirect
             if (url.includes('?download')) dl = url;
             else dl = url + "?download";
         }
@@ -757,28 +966,16 @@ router.get("/slmixlk/download", async (req, res) => {
         const $ = cheerio.load(data);
 
         // Extracting audio info
-        // SLMix often has a javascript based player or simple link
         const title = $('meta[property="og:title"]').attr('content') || $('title').text().trim();
         const thumb = $('meta[property="og:image"]').attr('content');
 
-        // Try finding the audio source
         let download_url = $('#audio source').attr('src') ||
             $('a.btn-download').attr('href') ||
             $('a[href$=".mp3"]').attr('href');
 
         if (!download_url) {
-            // Check for script variables
-            // var link = "..."
             const match = data.match(/link\s*=\s*"([^"]+\.mp3)"/);
             if (match) download_url = match[1];
-        }
-
-        // Sometimes the link in search results (constructed) might be slightly off or 
-        // the page structure is specific.
-        // Assuming standard player structure:
-        if (!download_url) {
-            const audioId = data.match(/data-audio-id="(\d+)"/);
-            // If push comes to shove, we might need to inspect network calls
         }
 
         if (!download_url) return res.status(404).json({ status: false, error: "Download link not found on page" });
@@ -793,6 +990,182 @@ router.get("/slmixlk/download", async (req, res) => {
             }
         });
 
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+// --- NEW MP3 SCRAPERS ---
+
+/**
+ * Sinduwa.lk Search
+ */
+router.get("/sinduwa", async (req, res) => {
+    const q = (req.query.q || "").trim();
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    try {
+        const { data } = await axios.get(`https://www.sinduwa.lk/?s=${encodeURIComponent(q)}`, {
+            headers: { "User-Agent": "Mozilla/5.0" }
+        });
+        const $ = cheerio.load(data);
+        const results = [];
+        $('.post-item, .item-post, article').each((i, el) => {
+            const a = $(el).find('a').first();
+            const link = a.attr('href');
+            if (link && (link.includes('/show-') || link.includes('/show_dj_'))) {
+                results.push({
+                    title: a.text().trim() || $(el).find('.title').text().trim(),
+                    link: link.startsWith('http') ? link : `https://www.sinduwa.lk${link}`,
+                    thumb: $(el).find('img').attr('src')
+                });
+            }
+        });
+        return res.json({ status: true, creator: baseInfo.creator, results });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+router.get("/sinduwa/download", async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+    try {
+        // Pattern: https://www.sinduwa.lk/show-10927-name
+        const idMatch = url.match(/show(?:_dj)?-(\d+)/);
+        if (!idMatch) throw new Error("Invalid Sinduwa URL");
+        const id = idMatch[1];
+
+        const { data } = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const $ = cheerio.load(data);
+        const title = $('h1').first().text().trim() || $('title').text().trim();
+
+        return res.json({
+            status: true,
+            creator: baseInfo.creator,
+            result: {
+                title,
+                download_url: `https://www.sinduwa.lk/get-mp3-file/${id}`
+            }
+        });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+/**
+ * Song.lk Search
+ */
+router.get("/songlk", async (req, res) => {
+    const q = (req.query.q || "").trim();
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    try {
+        const { data } = await axios.get(`https://song.lk/?s=${encodeURIComponent(q)}`, {
+            headers: { "User-Agent": "Mozilla/5.0" }
+        });
+        const $ = cheerio.load(data);
+        const results = [];
+        $('.song-item, .item, article').each((i, el) => {
+            const a = $(el).find('a').first();
+            const link = a.attr('href');
+            if (link && link.includes('/song/')) {
+                results.push({
+                    title: a.text().trim() || $(el).find('h2').text().trim(),
+                    link: link.startsWith('http') ? link : `https://song.lk${link}`,
+                    thumb: $(el).find('img').attr('src')
+                });
+            }
+        });
+        return res.json({ status: true, creator: baseInfo.creator, results });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+router.get("/songlk/download", async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+    try {
+        const { data } = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const $ = cheerio.load(data);
+        const title = $('h1').first().text().trim() || $('title').text().trim();
+        let dl = $('a[href$=".mp3"]').first().attr('href') ||
+            $('a.download-btn').attr('href') ||
+            $('button[data-url]').attr('data-url');
+
+        if (!dl) {
+            const match = data.match(/https?:\/\/[^\s"']+\.mp3/i);
+            if (match) dl = match[0];
+        }
+
+        return res.json({
+            status: true,
+            creator: baseInfo.creator,
+            result: {
+                title,
+                download_url: dl ? (dl.startsWith('http') ? dl : `https://song.lk${dl}`) : url + "?download=true"
+            }
+        });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+/**
+ * Music.lk Search
+ */
+router.get("/musiclk", async (req, res) => {
+    const q = (req.query.q || "").trim();
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+    try {
+        const { data } = await axios.get(`https://music.lk/search?q=${encodeURIComponent(q)}`, {
+            headers: { "User-Agent": "Mozilla/5.0" }
+        });
+        const $ = cheerio.load(data);
+        const results = [];
+        $('.search-result, .item').each((i, el) => {
+            const a = $(el).find('a').first();
+            const link = a.attr('href');
+            if (link) {
+                results.push({
+                    title: a.text().trim() || $(el).find('.title').text().trim(),
+                    link: link.startsWith('http') ? link : `https://music.lk${link}`,
+                    thumb: $(el).find('img').attr('src')
+                });
+            }
+        });
+        return res.json({ status: true, creator: baseInfo.creator, results });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+router.get("/musiclk/download", async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+    try {
+        const { data } = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const $ = cheerio.load(data);
+        const title = $('h1').first().text().trim() || $('title').text().trim();
+        let dl = $('a[href$=".mp3"]').first().attr('href');
+
+        return res.json({
+            status: true,
+            creator: baseInfo.creator,
+            result: {
+                title,
+                download_url: dl ? (dl.startsWith('http') ? dl : `https://music.lk${dl}`) : url
+            }
+        });
+    } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
+});
+
+/**
+ * Top Trending Sinhala Songs (Consolidated)
+ */
+router.get("/songs/trending", async (req, res) => {
+    try {
+        const { data } = await axios.get(`https://sinhanada.net/`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const $ = cheerio.load(data);
+        const results = [];
+        $('a[href*="/data/"]').each((i, el) => {
+            const title = $(el).text().trim();
+            const link = $(el).attr('href');
+            if (title && title.length > 5 && results.length < 20) {
+                results.push({
+                    title,
+                    link: link.startsWith('http') ? link : `https://sinhanada.net${link}`
+                });
+            }
+        });
+        return res.json({ status: true, creator: baseInfo.creator, results });
     } catch (e) { return res.status(500).json({ status: false, error: e.message }); }
 });
 
@@ -964,26 +1337,85 @@ async function ogmp3Download(youtubeUrl, format = "0", quality = "128") {
     }
 }
 
+/**
+ * Search and Download MP3 (Smart YouTube Match)
+ */
+router.get("/song/download", async (req, res) => {
+    const q = req.query.q || req.query.query;
+    if (!q) return res.status(400).json({ status: false, error: "Missing query" });
+
+    try {
+        // 1. Search YouTube for the best match using existing internal search or a direct node
+        const instances = [
+            "https://invidious.privacydev.net",
+            "https://yewtu.be",
+            "https://iv.melmac.space"
+        ];
+
+        let videoId = null;
+        let title = "";
+
+        for (const instance of instances) {
+            try {
+                const searchRes = await axios.get(`${instance}/api/v1/search?q=${encodeURIComponent(q)}&filter=videos`, { timeout: 8000 });
+                const items = Array.isArray(searchRes.data) ? searchRes.data : (searchRes.data.items || []);
+                if (items.length > 0) {
+                    videoId = items[0].videoId;
+                    title = items[0].title;
+                    break;
+                }
+            } catch (e) { continue; }
+        }
+
+        if (!videoId) {
+            // Fallback: use a public search API
+            const ytSearch = await axios.get(`https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(q)}`, { timeout: 10000 });
+            if (ytSearch.data && ytSearch.data.data && ytSearch.data.data.length > 0) {
+                videoId = ytSearch.data.data[0].videoId || ytSearch.data.data[0].url.split('v=')[1];
+                title = ytSearch.data.data[0].title;
+            }
+        }
+
+        if (!videoId) throw new Error("No matching song found on YouTube");
+
+        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+        // 2. Use our resilient extraction logic to get the MP3
+        const result = await fetchYouTubeResilient(ytUrl, "mp3");
+        const shortLink = await shortenUrl(result.download_url);
+
+        return res.json({
+            creator: baseInfo.creator,
+            status: true,
+            result: {
+                title: result.title || title,
+                url: ytUrl,
+                dl_link: shortLink,
+                thumbnail: result.thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+            }
+        });
+
+    } catch (e) {
+        return res.status(500).json({ status: false, error: e.message });
+    }
+});
+
 router.get("/mp3_v3", async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
-        const result = await ogmp3Download(url, "0", "128"); // Default to 128kbps MP3
-        if (result.status) {
-            return res.json({
-                creator: baseInfo.creator,
-                status: true,
-                result: {
-                    type: "audio",
-                    format: "mp3",
-                    title: result.title,
-                    dl_link: result.downloadUrl
-                }
-            });
-        } else {
-            throw new Error(result.error);
-        }
+        const result = await fetchYouTubeResilient(url, "mp3");
+        return res.json({
+            creator: baseInfo.creator,
+            status: true,
+            result: {
+                type: "audio",
+                format: "mp3",
+                title: result.title,
+                dl_link: result.download_url
+            }
+        });
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
     }
@@ -995,22 +1427,17 @@ router.get("/mp4_v3", async (req, res) => {
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
-        // format "1" is mp4
-        const result = await ogmp3Download(url, "1", quality);
-        if (result.status) {
-            return res.json({
-                creator: baseInfo.creator,
-                status: true,
-                result: {
-                    type: "video",
-                    format: "mp4",
-                    title: result.title,
-                    dl_link: result.downloadUrl
-                }
-            });
-        } else {
-            throw new Error(result.error);
-        }
+        const result = await fetchYouTubeResilient(url, "mp4", quality);
+        return res.json({
+            creator: baseInfo.creator,
+            status: true,
+            result: {
+                type: "video",
+                format: "mp4",
+                title: result.title,
+                dl_link: result.download_url
+            }
+        });
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
     }
