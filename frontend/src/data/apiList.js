@@ -148,6 +148,21 @@ export const apiList = [
         icon: "https://img.icons8.com/color/512/youtube-play.png"
     },
     {
+        id: 'ytmp4_v2',
+        category: 'Downloads',
+        name: "YouTube MP4 v2",
+        desc: "Enhanced YT to MP4 (Resilient Engine)",
+        endpoint: "/api/mp4_v2",
+        params: [
+            { name: "url", label: "Video URL" },
+            { name: "quality", label: "Quality (720, 1080...)", default: "720" }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
         id: 'ytmp4_v3',
         category: 'Downloads',
         name: "YouTube MP4 v3",
