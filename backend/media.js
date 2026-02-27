@@ -14,6 +14,41 @@ const baseInfo = {
     version: "1.0.0"
 };
 
+// --- Utility Functions ---
+
+function ranHash() {
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function xorEncrypt(str) {
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+        result += String.fromCharCode(str.charCodeAt(i) ^ 1);
+    }
+    return result;
+}
+
+function encUrl(url) {
+    const charCodes = [];
+    for (let i = 0; i < url.length; i++) {
+        charCodes.push(url.charCodeAt(i));
+    }
+    return charCodes.reverse().join(',');
+}
+
+const getRandomHeaders = () => {
+    const userAgents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ];
+    return {
+        'Content-Type': 'application/json',
+        'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)]
+    };
+};
+
 const Y2MATE_API_KEY = "dfcb6d76f2f6a9894gjkege8a4ab232222";
 const Y2MATE_BASE = "https://p.savenow.to";
 
@@ -448,49 +483,132 @@ async function fetchYt1sAjax(youtubeUrl, format = "mp3") {
     } catch (e) { throw new Error(`yt1s: ${e.message}`); }
 }
 
+/**
+ * Scraper: ytconvert.org (Resilient Node)
+ * Supports both MP3 and MP4 with bitrate/quality.
+ */
+async function fetchYtConvert(youtubeUrl, format = "mp3", quality = "128k") {
+    try {
+        const headers = {
+            "Content-Type": "application/json",
+            "Origin": "https://ytmp3.gg",
+            "Referer": "https://ytmp3.gg/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        };
+
+        const isVideo = format === "mp4";
+        const payload = {
+            url: youtubeUrl,
+            os: "windows",
+            output: {
+                type: isVideo ? "video" : "audio",
+                format: format,
+                ...(isVideo && { quality: quality })
+            },
+            ...(!isVideo && { audio: { bitrate: quality.toString().includes('k') ? quality : quality + 'k' } })
+        };
+
+        let downloadResponse;
+        try {
+            downloadResponse = await axios.post("https://hub.ytconvert.org/api/download", payload, { headers });
+        } catch (err) {
+            downloadResponse = await axios.post("https://api.ytconvert.org/api/download", payload, { headers });
+        }
+
+        let statusUrl = downloadResponse.data.statusUrl;
+        if (!statusUrl) throw new Error("No status URL returned");
+
+        let finalData = null;
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        while (!finalData && attempts < maxAttempts) {
+            const statusCheck = await axios.get(statusUrl, { headers });
+            if (statusCheck.data.status === "completed" || statusCheck.data.status === "finished" || statusCheck.data.downloadUrl) {
+                finalData = statusCheck.data;
+            } else if (statusCheck.data.status === "failed") {
+                throw new Error("Conversion failed");
+            } else {
+                attempts++;
+                await new Promise(res => setTimeout(res, 2000));
+            }
+        }
+
+        if (!finalData) throw new Error("Polling timeout");
+
+        return {
+            title: finalData.title || "YouTube Media",
+            download_url: finalData.downloadUrl,
+            thumb: `https://i.ytimg.com/vi/${youtubeUrl.split('v=')[1]?.split('&')[0] || youtubeUrl.split('be/')[1]?.split('?')[0]}/hqdefault.jpg`
+        };
+    } catch (err) {
+        throw new Error(`YtConvert: ${err.message}`);
+    }
+}
+
+/**
+ * Scraper: ogmp3.pw / apiapi.lat
+ */
+async function fetchOgMp3(youtubeUrl, format = "mp3", quality = "128") {
+    try {
+        const fmt = format === "mp3" ? "0" : "1";
+        let apiBase = "https://api3.apiapi.lat";
+        if (fmt === "1") apiBase = "https://api5.apiapi.lat";
+        else if (quality === "128") apiBase = "https://api.apiapi.lat";
+
+        const headers = {
+            "Content-Type": "application/json",
+            "Origin": "https://ogmp3.pw",
+            "Referer": "https://ogmp3.pw/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        };
+
+        const encryptedData = xorEncrypt(youtubeUrl);
+        const urlPathPart = encUrl(youtubeUrl);
+
+        const initUrl = `${apiBase}/${ranHash()}/init/${urlPathPart}/${ranHash()}/`;
+        const payload = {
+            data: encryptedData,
+            format: fmt,
+            mp3Quality: quality.toString().replace('k', ''),
+            mp4Quality: quality === "360" ? "360" : "720",
+            referer: "https://ogmp3.pw/",
+            userTimeZone: "-330"
+        };
+
+        const response = await axios.post(initUrl, payload, { headers });
+        if (response.data && response.data.i) {
+            const uniqueId = response.data.i;
+            const downloadUrl = `${apiBase}/${ranHash()}/download/${uniqueId}/${ranHash()}/`;
+            return {
+                title: response.data.t || "YouTube Media",
+                download_url: downloadUrl,
+                thumb: `https://i.ytimg.com/vi/${youtubeUrl.split('v=')[1]?.split('&')[0] || youtubeUrl.split('be/')[1]?.split('?')[0]}/hqdefault.jpg`
+            };
+        } else {
+            throw new Error("Server did not return a valid ID.");
+        }
+    } catch (err) {
+        throw new Error(`OgMp3: ${err.message}`);
+    }
+}
+
 async function fetchYouTubeResilient(url, format = "mp3", quality = "128") {
     const errors = [];
 
-    // 1. Try Vyturex (Trusted Stable Node)
+    // 1. Try YtConvert (New Primary)
     try {
-        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
-        const { data } = await axios.get(`https://api.vyturex.com/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
-        if (data && data.result && data.result.download_url) {
-            return {
-                title: data.result.title || "YouTube Media",
-                download_url: data.result.download_url,
-                thumb: data.result.thumbnail || `https://i.ytimg.com/vi/${url.split('v=')[1]?.split('&')[0]}/hqdefault.jpg`
-            };
-        }
-    } catch (e) { errors.push(`Vyturex: ${e.message}`); }
+        const res = await fetchYtConvert(url, format, quality);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(e.message); }
 
-    // 2. Try GiftedTech (Bot Multi-API)
+    // 2. Try OgMp3 (New Secondary)
     try {
-        const endpoint = format === "mp3" ? "dlmp3" : "dlmp4";
-        const { data } = await axios.get(`https://api.giftedtech.my.id/api/download/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
-        if (data && data.success && data.result) {
-            return {
-                title: data.result.title || "YouTube Media",
-                download_url: data.result.download_url,
-                thumb: data.result.thumb || data.result.thumbnail || ""
-            };
-        }
-    } catch (e) { errors.push(`Gifted: ${e.message}`); }
+        const res = await fetchOgMp3(url, format, quality);
+        if (res && res.download_url) return res;
+    } catch (e) { errors.push(e.message); }
 
-    // 3. Try Siputzx (Fast Scraper)
-    try {
-        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
-        const { data } = await axios.get(`https://api.siputzx.my.id/api/d/${endpoint}?url=${encodeURIComponent(url)}`, { timeout: 10000 });
-        if (data && data.status && data.data) {
-            return {
-                title: data.data.title || "YouTube Media",
-                download_url: data.data.dl || data.data.url,
-                thumb: data.data.thumbnail || ""
-            };
-        }
-    } catch (e) { errors.push(`Siputzx: ${e.message}`); }
-
-    // 4. Try SSYoutube
+    // 3. Try SSYoutube (Robust Fallback)
     try {
         if (format === "mp3") {
             const res = await fetchSsYoutubeMp3(url);
@@ -498,29 +616,23 @@ async function fetchYouTubeResilient(url, format = "mp3", quality = "128") {
         }
     } catch (e) { errors.push(`SSYoutube: ${e.message}`); }
 
-    // 5. Try Y2Mate (Polled Scraper)
-    try {
-        const res = await fetchY2Mate(url, format === "mp3" ? "mp3" : quality);
-        if (res && res.download_url) return res;
-    } catch (e) { errors.push(`Y2Mate: ${e.message}`); }
-
-    // 6. Try ytmp3.sc
+    // 4. Try ytmp3.sc (Fallback)
     try {
         const res = await fetchYtmp3Sc(url, format);
         if (res && res.download_url) return res;
-    } catch (e) { errors.push(`ytmp3.sc: ${e.message}`); }
+    } catch (e) { errors.push(e.message); }
 
-    // 7. Try ytmp3.gg
+    // 5. Try ytmp3.gg (Fallback)
     try {
         const res = await fetchYtmp3Gg(url, format);
         if (res && res.download_url) return res;
-    } catch (e) { errors.push(`ytmp3.gg: ${e.message}`); }
+    } catch (e) { errors.push(e.message); }
 
-    // 8. Try yt1s Ajax Scraper
+    // 6. Try yt1s Ajax Scraper (Fallback)
     try {
         const res = await fetchYt1sAjax(url, format);
         if (res && res.download_url) return res;
-    } catch (e) { errors.push(`yt1s: ${e.message}`); }
+    } catch (e) { errors.push(e.message); }
 
     throw new Error(`All download nodes failed: ${errors.join(' | ')}`);
 }
@@ -540,6 +652,32 @@ router.get("/mp3_v2", async (req, res) => {
                 type: "audio",
                 format: "mp3",
                 quality: "128kbps",
+                title: result.title,
+                thumbnail: result.thumb,
+                download_url: shortLink
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ status: false, error: e.message });
+    }
+});
+
+router.get("/mp4_v2", async (req, res) => {
+    const url = req.query.url;
+    const quality = req.query.quality || "720";
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
+    try {
+        const result = await fetchYouTubeResilient(url, "mp4", quality);
+        const shortLink = await shortenUrl(result.download_url);
+        return res.json({
+            creator: baseInfo.creator,
+            status: 200,
+            success: true,
+            result: {
+                type: "video",
+                format: "mp4",
+                quality: quality,
                 title: result.title,
                 thumbnail: result.thumb,
                 download_url: shortLink
@@ -1259,87 +1397,7 @@ router.get("/ph/search", async (req, res) => {
 });
 
 // --- OGMP3 (V3) Logic ---
-function ranHash() {
-    return crypto.randomBytes(16).toString('hex');
-}
-
-function xorEncrypt(str) {
-    let result = '';
-    for (let i = 0; i < str.length; i++) {
-        result += String.fromCharCode(str.charCodeAt(i) ^ 1);
-    }
-    return result;
-}
-
-function encUrl(url) {
-    const charCodes = [];
-    for (let i = 0; i < url.length; i++) {
-        charCodes.push(url.charCodeAt(i));
-    }
-    return charCodes.reverse().join(',');
-}
-
-async function ogmp3Download(youtubeUrl, format = "0", quality = "128") {
-    try {
-        let apiBase = "https://api3.apiapi.lat";
-        if (format === "1") apiBase = "https://api5.apiapi.lat";
-        else if (quality === "320") apiBase = "https://api.apiapi.lat"; // Adjustment based on typical behavior, but user code said quality === "128" -> api.apiapi.lat. 
-        // User code: if (quality === "128") apiBase = "https://api.apiapi.lat";
-        // Let's stick strictly to user code logic provided in prompt:
-        /*
-        let apiBase = "https://api3.apiapi.lat";
-        if (format === "1") apiBase = "https://api5.apiapi.lat";
-        else if (quality === "128") apiBase = "https://api.apiapi.lat";
-        */
-
-        // Re-implementing exactly as requested:
-        apiBase = "https://api3.apiapi.lat";
-        if (format === "1") apiBase = "https://api5.apiapi.lat";
-        else if (quality === "128") apiBase = "https://api.apiapi.lat";
-
-        const headers = {
-            "Content-Type": "application/json",
-            "Origin": "https://ogmp3.pw",
-            "Referer": "https://ogmp3.pw/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-        };
-
-        const encryptedData = xorEncrypt(youtubeUrl);
-        const urlPathPart = encUrl(youtubeUrl); // Note: In user code, encUrl function was defined.
-
-        const initUrl = `${apiBase}/${ranHash()}/init/${urlPathPart}/${ranHash()}/`;
-
-        const payload = {
-            data: encryptedData,
-            format: format, // "0" for mp3, "1" for mp4
-            mp3Quality: quality,
-            mp4Quality: quality === "360" ? "360" : "720",
-            referer: "https://ogmp3.pw/",
-            userTimeZone: "-330"
-        };
-
-        const response = await axios.post(initUrl, payload, { headers });
-
-        if (response.data && response.data.i) {
-            const uniqueId = response.data.i;
-            const downloadUrl = `${apiBase}/${ranHash()}/download/${uniqueId}/${ranHash()}/`;
-            // Helper to get final link not strictly needed providing the constructed DL url works, 
-            // but often these need a GET request or just return the link. 
-            // User code returns constructed downloadUrl.
-
-            return {
-                status: true,
-                title: response.data.t || "YouTube Video",
-                downloadUrl: downloadUrl,
-            };
-        } else {
-            return { status: false, error: "Server did not return a valid ID." };
-        }
-
-    } catch (error) {
-        return { status: false, error: error.response ? (error.response.data || error.message) : error.message };
-    }
-}
+// YouTube Resilient fallbacks handled by fetchYouTubeResilient
 
 /**
  * Search and Download MP3 (Smart YouTube Match)
