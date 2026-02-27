@@ -49,9 +49,6 @@ const getRandomHeaders = () => {
     };
 };
 
-const Y2MATE_API_KEY = "dfcb6d76f2f6a9894gjkege8a4ab232222";
-const Y2MATE_BASE = "https://p.savenow.to";
-
 /**
  * URL Expander (follows redirects)
  */
@@ -63,7 +60,6 @@ async function expandUrl(url) {
         });
         return resp.request.res.responseUrl || url;
     } catch (e) {
-        // Fallback to GET if HEAD is blocked
         try {
             const resp = await axios.get(url, {
                 maxRedirects: 10,
@@ -74,37 +70,6 @@ async function expandUrl(url) {
             return url;
         }
     }
-}
-
-/**
- * Helper to fetch and poll Y2Mate/Loader.to API
- */
-async function fetchY2Mate(url, format) {
-    try {
-        const { data: initData } = await axios.get(`${Y2MATE_BASE}/ajax/download.php`, {
-            params: { format: format, url: url, api: Y2MATE_API_KEY },
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://y2mate.yt/'
-            }
-        });
-        if (!initData.success || !initData.id) throw new Error(initData.text || "Failed to initialize conversion");
-        const id = initData.id;
-        let dLink = null, attempts = 0;
-        const maxAttempts = 30;
-        while (!dLink && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            attempts++;
-            const { data: progData } = await axios.get(`${Y2MATE_BASE}/api/progress`, {
-                params: { id },
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
-            if (progData.success === 1 || progData.progress === 1000 || progData.download_url) dLink = progData.download_url;
-            else if (progData.success === -1) throw new Error("Conversion failed on server");
-        }
-        if (!dLink) throw new Error("Conversion timed out");
-        return { title: initData.title || "YouTube Media", thumb: initData.info?.image || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`, download_url: dLink };
-    } catch (e) { throw new Error(`Y2Mate Error: ${e.message}`); }
 }
 
 // --- Scraper Logic ---
@@ -358,130 +323,6 @@ async function fetchSsYoutubeMp3(youtubeUrl) {
     }
 }
 
-/**
- * Scraper: ytmp3.sc
- * Reverse-engineered from the site's frontend AJAX flow.
- * Uses their /api/convert endpoint with URL + format params.
- */
-async function fetchYtmp3Sc(youtubeUrl, format = "mp3") {
-    try {
-        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
-            youtubeUrl.split('v=')[1]?.split('&')[0];
-        if (!videoId) throw new Error("Video ID not found");
-
-        // Step 1: Request conversion
-        const { data: initData } = await axios.post('https://ytmp3.sc/api/convert', qs.stringify({
-            id: videoId,
-            format: format === "mp3" ? "mp3" : "mp4"
-        }), {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Referer': 'https://ytmp3.sc/',
-                'Origin': 'https://ytmp3.sc',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
-            },
-            timeout: 12000
-        });
-
-        if (!initData || !initData.url) throw new Error('No download URL in response');
-
-        return {
-            title: initData.title || `YouTube-${videoId}`,
-            download_url: initData.url,
-            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-        };
-    } catch (e) { throw new Error(`ytmp3.sc: ${e.message}`); }
-}
-
-/**
- * Scraper: ytmp3.gg
- * Uses their backend API endpoint pattern seen in devtools network analysis.
- */
-async function fetchYtmp3Gg(youtubeUrl, format = "mp3") {
-    try {
-        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
-            youtubeUrl.split('v=')[1]?.split('&')[0];
-        if (!videoId) throw new Error("Video ID not found");
-
-        const endpoint = format === "mp3" ? "ytmp3" : "ytmp4";
-        const { data } = await axios.get(`https://ytmp3.gg/api/${endpoint}`, {
-            params: { id: videoId },
-            headers: {
-                'Referer': 'https://ytmp3.gg/',
-                'Origin': 'https://ytmp3.gg',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
-            },
-            timeout: 12000
-        });
-
-        if (!data || !data.url) throw new Error('No URL in response');
-
-        return {
-            title: data.title || `YouTube-${videoId}`,
-            download_url: data.url,
-            thumb: data.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-        };
-    } catch (e) { throw new Error(`ytmp3.gg: ${e.message}`); }
-}
-
-/**
- * Scraper: yt1s Ajax-style (yt1s.is / yt1s.biz pattern)
- * Two-step: ajaxSearch -> ajaxConvert using video ID + k-value
- */
-async function fetchYt1sAjax(youtubeUrl, format = "mp3") {
-    try {
-        const videoId = youtubeUrl.split('be/')[1]?.split('?')[0] ||
-            youtubeUrl.split('v=')[1]?.split('&')[0];
-        if (!videoId) throw new Error("Video ID not found");
-
-        const baseHeaders = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0 Safari/537.36',
-            'Referer': 'https://yt1s.is/',
-            'Origin': 'https://yt1s.is'
-        };
-
-        // Step 1: Search/analyze
-        const searchPayload = qs.stringify({
-            q: youtubeUrl,
-            vt: format === "mp3" ? "mp3" : "mp4"
-        });
-        const { data: searchData } = await axios.post(
-            'https://yt1s.is/api/ajaxSearch/index',
-            searchPayload,
-            { headers: baseHeaders, timeout: 12000 }
-        );
-
-        if (!searchData || searchData.status !== 'ok') throw new Error('Search failed');
-
-        const kval = format === "mp3"
-            ? (searchData.links?.mp3?.mp3128?.k || Object.values(searchData.links?.mp3 || {})[0]?.k)
-            : (searchData.links?.mp4?.["720"]?.k || Object.values(searchData.links?.mp4 || {})[0]?.k);
-
-        if (!kval) throw new Error('k-value not found');
-
-        // Step 2: Convert
-        const convertPayload = qs.stringify({
-            vid: searchData.vid || videoId,
-            k: kval
-        });
-        const { data: convertData } = await axios.post(
-            'https://yt1s.is/api/ajaxConvert/convert',
-            convertPayload,
-            { headers: baseHeaders, timeout: 20000 }
-        );
-
-        if (!convertData || convertData.status !== 'ok' || !convertData.dlink) {
-            throw new Error('Conversion failed or no download link');
-        }
-
-        return {
-            title: searchData.title || `YouTube-${videoId}`,
-            download_url: convertData.dlink,
-            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-        };
-    } catch (e) { throw new Error(`yt1s: ${e.message}`); }
-}
 
 /**
  * Scraper: ytconvert.org (Resilient Node)
@@ -596,43 +437,25 @@ async function fetchOgMp3(youtubeUrl, format = "mp3", quality = "128") {
 async function fetchYouTubeResilient(url, format = "mp3", quality = "128") {
     const errors = [];
 
-    // 1. Try YtConvert (New Primary)
+    // 1. Try YtConvert (Primary)
     try {
         const res = await fetchYtConvert(url, format, quality);
         if (res && res.download_url) return res;
     } catch (e) { errors.push(e.message); }
 
-    // 2. Try OgMp3 (New Secondary)
+    // 2. Try OgMp3 (Secondary)
     try {
         const res = await fetchOgMp3(url, format, quality);
         if (res && res.download_url) return res;
     } catch (e) { errors.push(e.message); }
 
-    // 3. Try SSYoutube (Robust Fallback)
+    // 3. Try SSYoutube (Fallback)
     try {
         if (format === "mp3") {
             const res = await fetchSsYoutubeMp3(url);
             if (res && res.dl_link) return { title: res.title, download_url: res.dl_link, thumb: "" };
         }
     } catch (e) { errors.push(`SSYoutube: ${e.message}`); }
-
-    // 4. Try ytmp3.sc (Fallback)
-    try {
-        const res = await fetchYtmp3Sc(url, format);
-        if (res && res.download_url) return res;
-    } catch (e) { errors.push(e.message); }
-
-    // 5. Try ytmp3.gg (Fallback)
-    try {
-        const res = await fetchYtmp3Gg(url, format);
-        if (res && res.download_url) return res;
-    } catch (e) { errors.push(e.message); }
-
-    // 6. Try yt1s Ajax Scraper (Fallback)
-    try {
-        const res = await fetchYt1sAjax(url, format);
-        if (res && res.download_url) return res;
-    } catch (e) { errors.push(e.message); }
 
     throw new Error(`All download nodes failed: ${errors.join(' | ')}`);
 }
@@ -669,7 +492,6 @@ router.get("/mp4_v2", async (req, res) => {
 
     try {
         const result = await fetchYouTubeResilient(url, "mp4", quality);
-        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -680,7 +502,7 @@ router.get("/mp4_v2", async (req, res) => {
                 quality: quality,
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: shortLink
+                download_url: result.download_url
             }
         });
     } catch (e) {
@@ -756,7 +578,6 @@ router.get("/ytmp3", async (req, res) => {
 
     try {
         const result = await fetchYouTubeResilient(url, "mp3");
-        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -767,7 +588,7 @@ router.get("/ytmp3", async (req, res) => {
                 quality: "128kbps",
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: shortLink
+                download_url: result.download_url
             }
         });
     } catch (e) {
@@ -782,7 +603,6 @@ router.get("/ytmp4", async (req, res) => {
 
     try {
         const result = await fetchYouTubeResilient(url, "mp4", quality);
-        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -793,7 +613,7 @@ router.get("/ytmp4", async (req, res) => {
                 quality: quality,
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: shortLink
+                download_url: result.download_url
             }
         });
     } catch (e) {
@@ -1496,7 +1316,6 @@ router.get("/mp4_v3", async (req, res) => {
 
     try {
         const result = await fetchYouTubeResilient(url, "mp4", quality);
-        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
             status: 200,
@@ -1507,7 +1326,7 @@ router.get("/mp4_v3", async (req, res) => {
                 quality: quality,
                 title: result.title,
                 thumbnail: result.thumb,
-                download_url: shortLink
+                download_url: result.download_url
             }
         });
     } catch (e) {
@@ -1607,6 +1426,55 @@ router.get("/proxy/download", async (req, res) => {
     } catch (e) {
         console.error('[Proxy Download] Error:', e.message);
         return res.status(500).json({ status: false, error: 'Download proxy failed: ' + e.message });
+    }
+});
+
+router.get("/mp3_v3", async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
+    try {
+        const result = await fetchYouTubeResilient(url, "mp3");
+        return res.json({
+            creator: baseInfo.creator,
+            status: 200,
+            success: true,
+            result: {
+                type: "audio",
+                format: "mp3",
+                quality: "128kbps",
+                title: result.title,
+                thumbnail: result.thumb,
+                download_url: result.download_url
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ status: false, error: e.message });
+    }
+});
+
+router.get("/mp4_v3", async (req, res) => {
+    const url = req.query.url;
+    const quality = req.query.quality || "720";
+    if (!url) return res.status(400).json({ status: false, error: "Missing url" });
+
+    try {
+        const result = await fetchYouTubeResilient(url, "mp4", quality);
+        return res.json({
+            creator: baseInfo.creator,
+            status: 200,
+            success: true,
+            result: {
+                type: "video",
+                format: "mp4",
+                quality: quality,
+                title: result.title,
+                thumbnail: result.thumb,
+                download_url: result.download_url
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ status: false, error: e.message });
     }
 });
 
