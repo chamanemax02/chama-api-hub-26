@@ -163,6 +163,87 @@ export const apiList = [
         icon: "https://img.icons8.com/color/512/youtube-play.png"
     },
     {
+        id: 'ytmp3_sc',
+        category: 'Downloads',
+        name: "YouTube MP3 (ytmp3.sc)",
+        desc: "Download YouTube audio via ytmp3.sc Engine — Fast & Clean",
+        endpoint: "/api/ytmp3",
+        params: [{ name: "url", label: "YouTube Video URL" }],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
+        id: 'ytmp4_sc',
+        category: 'Downloads',
+        name: "YouTube MP4 (ytmp3.sc)",
+        desc: "Download YouTube video via ytmp3.sc Engine — HD Quality",
+        endpoint: "/api/ytmp4",
+        params: [
+            { name: "url", label: "YouTube Video URL" },
+            { name: "quality", label: "Quality (720, 1080)", default: "720" }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
+        id: 'ytmp3_gg',
+        category: 'Downloads',
+        name: "YouTube MP3 (ytmp3.gg)",
+        desc: "Download YouTube audio via ytmp3.gg Engine — Ultra Fast",
+        endpoint: "/api/ytmp3",
+        params: [{ name: "url", label: "YouTube Video URL" }],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
+        id: 'ytmp4_gg',
+        category: 'Downloads',
+        name: "YouTube MP4 (ytmp3.gg)",
+        desc: "Download YouTube video via ytmp3.gg Engine",
+        endpoint: "/api/ytmp4",
+        params: [
+            { name: "url", label: "YouTube Video URL" },
+            { name: "quality", label: "Quality (720, 1080)", default: "720" }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
+        id: 'yt1s_mp3',
+        category: 'Downloads',
+        name: "YouTube MP3 (yt1s Ajax)",
+        desc: "High-quality YT to MP3 via yt1s.is Two-Step Ajax Engine (128kbps)",
+        endpoint: "/api/ytmp3",
+        params: [{ name: "url", label: "YouTube Video URL" }],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
+        id: 'yt1s_mp4',
+        category: 'Downloads',
+        name: "YouTube MP4 (yt1s Ajax)",
+        desc: "High-quality YT to MP4 via yt1s.is Two-Step Ajax Engine (720p)",
+        endpoint: "/api/ytmp4",
+        params: [
+            { name: "url", label: "YouTube Video URL" },
+            { name: "quality", label: "Quality (720)", default: "720" }
+        ],
+        type: "GET",
+        status: "working",
+        isNew: true,
+        icon: "https://img.icons8.com/color/512/youtube-play.png"
+    },
+    {
         id: 'pinterest',
         category: 'Downloads',
         name: "Pinterest Video",
