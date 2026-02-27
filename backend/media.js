@@ -534,18 +534,22 @@ router.get("/mp3_v2", async (req, res) => {
         const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
-            status: true,
+            status: 200,
+            success: true,
             result: {
                 type: "audio",
                 format: "mp3",
+                quality: "128kbps",
                 title: result.title,
-                dl_link: shortLink
+                thumbnail: result.thumb,
+                download_url: shortLink
             }
         });
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
     }
 });
+
 
 
 // Facebook Multi-Provider (Resilient Auto Fallback)
@@ -631,11 +635,11 @@ router.get("/ytmp3", async (req, res) => {
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
     }
-});
+})
 
 router.get("/ytmp4", async (req, res) => {
     const url = req.query.url;
-    const quality = req.query.quality || "720"; // default 720
+    const quality = req.query.quality || "720";
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
@@ -648,7 +652,7 @@ router.get("/ytmp4", async (req, res) => {
             result: {
                 type: "video",
                 format: "mp4",
-                quality: quality + "p",
+                quality: quality,
                 title: result.title,
                 thumbnail: result.thumb,
                 download_url: shortLink
@@ -657,7 +661,7 @@ router.get("/ytmp4", async (req, res) => {
     } catch (e) {
         return res.status(500).json({ status: false, error: e.message });
     }
-});
+})
 
 router.get("/tiktok", async (req, res) => {
     const url = req.query.url;
@@ -1345,7 +1349,7 @@ router.get("/song/download", async (req, res) => {
     if (!q) return res.status(400).json({ status: false, error: "Missing query" });
 
     try {
-        // 1. Search YouTube for the best match using existing internal search or a direct node
+        // 1. Search YouTube for the best match
         const instances = [
             "https://invidious.privacydev.net",
             "https://yewtu.be",
@@ -1368,7 +1372,6 @@ router.get("/song/download", async (req, res) => {
         }
 
         if (!videoId) {
-            // Fallback: use a public search API
             const ytSearch = await axios.get(`https://api.siputzx.my.id/api/s/youtube?query=${encodeURIComponent(q)}`, { timeout: 10000 });
             if (ytSearch.data && ytSearch.data.data && ytSearch.data.data.length > 0) {
                 videoId = ytSearch.data.data[0].videoId || ytSearch.data.data[0].url.split('v=')[1];
@@ -1380,18 +1383,21 @@ router.get("/song/download", async (req, res) => {
 
         const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        // 2. Use our resilient extraction logic to get the MP3
+        // 2. Use resilient extraction to get MP3
         const result = await fetchYouTubeResilient(ytUrl, "mp3");
         const shortLink = await shortenUrl(result.download_url);
 
         return res.json({
             creator: baseInfo.creator,
-            status: true,
+            status: 200,
+            success: true,
             result: {
+                type: "audio",
+                format: "mp3",
+                quality: "128kbps",
                 title: result.title || title,
-                url: ytUrl,
-                dl_link: shortLink,
-                thumbnail: result.thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+                thumbnail: result.thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                download_url: shortLink
             }
         });
 
@@ -1406,14 +1412,18 @@ router.get("/mp3_v3", async (req, res) => {
 
     try {
         const result = await fetchYouTubeResilient(url, "mp3");
+        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
-            status: true,
+            status: 200,
+            success: true,
             result: {
                 type: "audio",
                 format: "mp3",
+                quality: "128kbps",
                 title: result.title,
-                dl_link: result.download_url
+                thumbnail: result.thumb,
+                download_url: shortLink
             }
         });
     } catch (e) {
@@ -1423,19 +1433,23 @@ router.get("/mp3_v3", async (req, res) => {
 
 router.get("/mp4_v3", async (req, res) => {
     const url = req.query.url;
-    const quality = req.query.quality || "360"; // Default to 360p
+    const quality = req.query.quality || "720";
     if (!url) return res.status(400).json({ status: false, error: "Missing url" });
 
     try {
         const result = await fetchYouTubeResilient(url, "mp4", quality);
+        const shortLink = await shortenUrl(result.download_url);
         return res.json({
             creator: baseInfo.creator,
-            status: true,
+            status: 200,
+            success: true,
             result: {
                 type: "video",
                 format: "mp4",
+                quality: quality,
                 title: result.title,
-                dl_link: result.download_url
+                thumbnail: result.thumb,
+                download_url: shortLink
             }
         });
     } catch (e) {
@@ -1482,6 +1496,59 @@ router.get("/apkdownload", async (req, res) => {
     } catch (e) {
         console.error(`Error in /apkdownload:`, e.message);
         return res.status(500).json({ success: false, creator: "@Tharuzz-ofc", code: 500, error: "Aptoide API Error" });
+    }
+});
+
+/**
+ * =====================================================================
+ * PROXY DOWNLOAD ROUTE
+ * Opens the real CDN file URL server-side and streams it to the browser
+ * with Content-Disposition: attachment → triggers direct file download
+ * Usage: /api/proxy/download?url=<encoded_url>&filename=<file.mp3>
+ * =====================================================================
+ */
+router.get("/proxy/download", async (req, res) => {
+    const { url, filename } = req.query;
+    if (!url) return res.status(400).json({ status: false, error: "Missing url parameter" });
+
+    const safeFilename = filename || "download";
+
+    try {
+        const response = await axios({
+            method: 'GET',
+            url: decodeURIComponent(url),
+            responseType: 'stream',
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+                'Referer': new URL(decodeURIComponent(url)).origin,
+                'Accept': '*/*'
+            },
+            maxRedirects: 10
+        });
+
+        // Detect content type from response
+        const contentType = response.headers['content-type'] || 'application/octet-stream';
+        const contentLength = response.headers['content-length'];
+
+        // Set headers to force browser download
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Type', contentType);
+        if (contentLength) res.setHeader('Content-Length', contentLength);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'no-cache');
+
+        // Stream the file
+        response.data.pipe(res);
+
+        response.data.on('error', (err) => {
+            console.error('[Proxy Download] Stream error:', err.message);
+            if (!res.headersSent) res.status(500).json({ status: false, error: 'Stream failed' });
+        });
+
+    } catch (e) {
+        console.error('[Proxy Download] Error:', e.message);
+        return res.status(500).json({ status: false, error: 'Download proxy failed: ' + e.message });
     }
 });
 
