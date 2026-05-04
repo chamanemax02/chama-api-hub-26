@@ -76,6 +76,7 @@ router.post('/google-sync', async (req, res) => {
     if (!uid) return res.status(400).json({ status: false, error: "UID required" });
     try {
         const user = await DB.saveUser({ uid, email, displayName, photoURL, provider: 'google' });
+        if (!user) return res.status(500).json({ status: false, error: "Failed to save user to database" });
         res.json({ status: true, message: "Sync successful", user });
     } catch (e) { res.status(500).json({ status: false, error: e.message }); }
 });
@@ -113,7 +114,6 @@ router.post('/github-oauth', async (req, res) => {
 
         const ghUser = userRes.data;
 
-        // 3. Save/Sync user
         const user = await DB.saveUser({
             uid: `github:${ghUser.id}`,
             email: ghUser.email || `${ghUser.login}@github.com`,
@@ -122,6 +122,7 @@ router.post('/github-oauth', async (req, res) => {
             provider: 'github'
         });
 
+        if (!user) return res.status(500).json({ status: false, error: "Failed to sync GitHub user to database" });
         res.json({ status: true, user });
     } catch (e) {
         console.error("GitHub Auth Error:", e.message);
