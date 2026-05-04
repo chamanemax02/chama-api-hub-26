@@ -181,7 +181,7 @@ function AppContent() {
         localStorage.setItem('chama_user_session', JSON.stringify(res.data.user));
         console.log("CHAMA: Login Success");
       } else {
-        throw new Error(res.data.error || "Backend sync failed");
+        alert("Login Sync Failed: " + (res.data.error || "Please check backend logs"));
       }
     } catch (e) {
       console.error("CHAMA: Login Error", e);
@@ -214,12 +214,11 @@ function AppContent() {
           if (res.data.status && res.data.user) {
             setUser(res.data.user);
             localStorage.setItem('chama_user_session', JSON.stringify(res.data.user));
-            // Clean URL and redirect to root to ensure clean state
-            window.history.replaceState({}, document.title, "/");
-            navigate("/", { replace: true });
+            // Success: Clean URL
+            window.location.search = "";
           } else {
             console.error("GitHub Sync Failed:", res.data.error);
-            window.history.replaceState({}, document.title, "/");
+            window.location.search = "";
           }
         } catch (e) {
           console.error("GitHub Login Error:", e);
