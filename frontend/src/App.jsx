@@ -176,10 +176,12 @@ function AppContent() {
         photoURL: decoded.picture
       });
 
-      if (res.data.status) {
+      if (res.data.status && res.data.user) {
         setUser(res.data.user);
         localStorage.setItem('chama_user_session', JSON.stringify(res.data.user));
         console.log("CHAMA: Login Success");
+      } else {
+        throw new Error(res.data.error || "Backend sync failed");
       }
     } catch (e) {
       console.error("CHAMA: Login Error", e);
@@ -209,11 +211,15 @@ function AppContent() {
           // For this hub, we'll implement a 'GitHub Sync' flow.
           // Since we need to get user info, we'll assume the backend handles the exchange.
           const res = await axios.post('/api/auth/github-oauth', { code });
-          if (res.data.status) {
+          if (res.data.status && res.data.user) {
             setUser(res.data.user);
             localStorage.setItem('chama_user_session', JSON.stringify(res.data.user));
-            // Clean URL
-            window.history.replaceState({}, document.title, "/home");
+            // Clean URL and redirect to root to ensure clean state
+            window.history.replaceState({}, document.title, "/");
+            navigate("/", { replace: true });
+          } else {
+            console.error("GitHub Sync Failed:", res.data.error);
+            window.history.replaceState({}, document.title, "/");
           }
         } catch (e) {
           console.error("GitHub Login Error:", e);
