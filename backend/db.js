@@ -4,17 +4,17 @@ const { getDatabase, ref, get, set, child, update } = require('firebase/database
 const crypto = require('crypto');
 
 // Firebase Configuration via Environment Variables
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "AIzaSyACd7ZRGWkKAKOahuW66fEqJ3gOoy1-J3Y",
-    authDomain: "test-23417.firebaseapp.com",
-    databaseURL: "https://test-23417-default-rtdb.firebaseio.com",
-    projectId: "test-23417",
-    storageBucket: "test-23417.firebasestorage.app",
-    messagingSenderId: "956698965647",
-    appId: "1:956698965647:web:cb6e6d221e88b0dd92e2fa",
-    measurementId: "G-E1R493NTZM"
+  apiKey: "AIzaSyBCxuAnL0Mds3HJpozjCXATNHLUe47ZyHo",
+  authDomain: "api-site-chama.firebaseapp.com",
+  databaseURL: "https://api-site-chama-default-rtdb.firebaseio.com",
+  projectId: "api-site-chama",
+  storageBucket: "api-site-chama.firebasestorage.app",
+  messagingSenderId: "227223028806",
+  appId: "1:227223028806:web:fce09f4dc0daa1e0a03647",
+  measurementId: "G-BMFG8YVYMQ"
 };
-
 // Initialize Firebase with safety check
 let db;
 try {
